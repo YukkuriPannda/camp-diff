@@ -5,7 +5,7 @@
 camp-diffが共有するのは、編集中のファイルパスと行範囲です。ファイルの本文や、追加・削除された行のテキストは共有しません。ほかのメンバーと変更箇所が重なったときは、VS Code上で警告します。
 
 > [!NOTE]
-> 現在は構想・開発初期段階です。ここに記載した仕様は変更される可能性があります。
+> MVPの機能は一通り実装済みですが、マーケットプレイスには未公開です。利用にはシグナリングサーバーの自前ホストが必要です。
 
 ## 背景
 
@@ -98,3 +98,57 @@ coverage/
 - 同じファイル内で重複または近接する編集範囲を検知する
 - 衝突の可能性がある箇所をサイドバーとエディタ上で警告する
 - サイドバーから対象ファイルと行へ移動できる
+
+## セットアップ
+
+camp-diffのP2P接続は、WebRTCのハンドシェイクを中継するシグナリングサーバーを経由して確立します。公開サーバーは用意していないため、チームで1つ立ててください。手順は[`signaling-server/README.md`](signaling-server/README.md)にあります。
+
+```powershell
+git clone https://github.com/YukkuriPannda/camp-diff.git
+cd camp-diff
+npm install
+npm run dev:signaling   # 開発用シグナリングサーバー (ws://localhost:4444)
+npm run package         # camp-diff-0.0.1.vsix を生成
+code --install-extension camp-diff-0.0.1.vsix
+```
+
+インストール後、チーム全員が同じ`campDiff.signalingServerUrls`を指すように設定します。同じリポジトリ・同じブランチで作業しているメンバーだけが同じルームに入ります（ルーム名はremote URLとブランチ名から決まり、サーバーには中身が渡りません）。
+
+## 設定
+
+| 設定 | 既定値 | 説明 |
+| --- | --- | --- |
+| `campDiff.username` | 空 | 表示名。未設定なら`git config user.name`→OSのユーザー名の順に自動解決します |
+| `campDiff.signalingServerUrls` | `["ws://localhost:4444"]` | シグナリングサーバーのURL（冗長化のため配列） |
+| `campDiff.iceServers` | Google STUN | `RTCIceServer[]`形式。企業ネットワークではTURNの追加を推奨します |
+| `campDiff.roomPassword` | 空 | y-webrtcのアプリ層暗号化に使う任意の共有パスワード |
+| `campDiff.remoteName` | `origin` | ルーム名の導出に使うremote名。fork構成では`upstream`などに変更します |
+| `campDiff.cursorContextLines` | `3` | 選択範囲が空のとき、カーソル行の前後何行を共有するか |
+| `campDiff.conflictProximityLines` | `3` | 重なっていなくても衝突とみなす範囲間の行数 |
+| `campDiff.idleTimeoutSeconds` | `120` | 無操作がこの秒数続くと自分の編集箇所を非表示にします |
+
+## プライバシー
+
+- 共有されるのはファイルパスと行範囲だけで、ファイルの本文や差分の中身は一切送信しません。この性質は実装上も担保されており、presenceはすべて`awareness`（非永続の共有状態）にのみ載せ、共同編集用の文書オブジェクトは空のまま使いません。
+- シグナリングサーバーが扱うのはWebRTCのSDP/ICEハンドシェイクだけです。presenceの中身はP2Pのデータチャネル確立後にしか流れないため、サーバーからは見えません。
+- テレメトリの送信は一切ありません。
+
+## 制限事項
+
+- **認証はありません**。ルーム名の導出にはpublicなremote URLとブランチ名しか使わないため、同じ値を計算できる相手は誰でも参加できます。小規模チーム向けMVPとして意図的に許容しています。
+- 企業ネットワークやVPN配下ではSTUNだけでは接続できないことがあります。その場合は`campDiff.iceServers`にTURNを追加してください。
+- フルメッシュ接続のため、人数が増えると接続数が二乗で増えます。十数名程度までを想定しています。
+- remoteが設定されていないリポジトリ、`vscode.git`拡張が無効な環境では接続せず、サイドバーに縮退状態を表示します。
+- バックグラウンド同期用に「camp-diff (background sync)」というタブが常に1つ開きます。これを隠す公式APIがないための仕様です。
+
+## 開発
+
+```powershell
+npm install
+npm run watch              # esbuildのウォッチ（F5でExtension Development Hostを起動）
+npm run lint
+npm run compile            # tscによる型チェックのみ
+npm test                   # 単体テスト（VS Codeホスト上で実行）
+npm run test:integration   # 実WebRTCでのP2P疎通・衝突検知の統合テスト
+npm run test:package       # .vsixを生成しクリーンなプロファイルで起動確認
+```

@@ -2,6 +2,22 @@
   "name": "camp-diff",
   "displayName": "camp-diff",
   "description": "チームメンバーの編集箇所をリアルタイムに共有し、変更の衝突に早く気づけるようにするVS Code拡張",
+  "keywords": [
+    "collaboration",
+    "presence",
+    "git",
+    "merge conflict",
+    "realtime",
+    "team"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YukkuriPannda/camp-diff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YukkuriPannda/camp-diff/issues"
+  },
+  "homepage": "https://github.com/YukkuriPannda/camp-diff#readme",
   "version": "0.0.1",
   "publisher": "camp-diff",
   "private": true,
@@ -14,6 +30,7 @@
   "categories": [
     "Other"
   ],
+  "icon": "media/icon.png",
   "main": "./dist/extension.js",
   "activationEvents": [],
   "contributes": {
@@ -128,6 +145,7 @@
     "test:compile": "tsc -p tsconfig.test.json",
     "test": "npm run test:compile && vscode-test",
     "test:integration": "npm run build && npm run test:compile && node ./out/test/extension/runTest.js",
+    "test:package": "npm run build && npm run test:compile && node ./out/test/package/runPackageTest.js",
     "dev:signaling": "npm --prefix signaling-server run dev",
     "package": "vsce package"
   },
