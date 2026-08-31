@@ -5,7 +5,7 @@
 camp-diffが共有するのは、編集中のファイルパスと行範囲です。ファイルの本文や、追加・削除された行のテキストは共有しません。ほかのメンバーと変更箇所が重なったときは、VS Code上で警告します。
 
 > [!NOTE]
-> MVPの機能は一通り実装済みですが、マーケットプレイスには未公開です。利用にはシグナリングサーバーの自前ホストが必要です。
+> MVPの機能は一通り実装済みです。マーケットプレイスには公開せず、`.vsix`を直接配る内輪向けの拡張として運用します。利用にはシグナリングサーバーの自前ホストが必要です。
 
 ## 背景
 
@@ -101,18 +101,37 @@ coverage/
 
 ## セットアップ
 
-camp-diffのP2P接続は、WebRTCのハンドシェイクを中継するシグナリングサーバーを経由して確立します。公開サーバーは用意していないため、チームで1つ立ててください。手順は[`signaling-server/README.md`](signaling-server/README.md)にあります。
+camp-diffはマーケットプレイスに公開していません。`.vsix`をビルドしてチーム内で配布します。
+
+### 1. シグナリングサーバーを1つ立てる
+
+P2P接続はWebRTCのハンドシェイクを中継するシグナリングサーバー経由で確立します。公開サーバーは用意していないため、チームで1つ立ててください。手順は[`signaling-server/README.md`](signaling-server/README.md)にあります（Dockerfile同梱）。中継するのはSDP/ICEだけで、presenceの中身は通りません。
+
+### 2. `.vsix`をビルドして配る
 
 ```powershell
 git clone https://github.com/YukkuriPannda/camp-diff.git
 cd camp-diff
 npm install
-npm run dev:signaling   # 開発用シグナリングサーバー (ws://localhost:4444)
 npm run package         # camp-diff-0.0.1.vsix を生成
+```
+
+生成された`.vsix`をメンバーに渡します（GitHubのReleasesに添付する、共有フォルダに置く、など）。
+
+### 3. 各メンバーがインストールする
+
+```powershell
 code --install-extension camp-diff-0.0.1.vsix
 ```
 
-インストール後、チーム全員が同じ`campDiff.signalingServerUrls`を指すように設定します。同じリポジトリ・同じブランチで作業しているメンバーだけが同じルームに入ります（ルーム名はremote URLとブランチ名から決まり、サーバーには中身が渡りません）。
+VS Codeの拡張ビューの「...」→「Install from VSIX...」からでも入れられます。
+
+> [!IMPORTANT]
+> `.vsix`で入れた拡張は自動更新されません。更新するときは`package.json`の`version`を上げて`.vsix`を配り直し、各メンバーが同じコマンドで再インストールする必要があります。
+
+### 4. 設定を合わせる
+
+チーム全員が同じ`campDiff.signalingServerUrls`を指すようにします。同じリポジトリ・同じブランチで作業しているメンバーだけが同じルームに入ります（ルーム名はremote URLとブランチ名から決まり、サーバーには中身が渡りません）。任意で`campDiff.roomPassword`を全員で揃えておくと、ルーム名を計算できる第三者が紛れ込むのを防げます。
 
 ## 設定
 
