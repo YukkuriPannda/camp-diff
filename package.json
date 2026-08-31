@@ -1,0 +1,55 @@
+{
+  "name": "camp-diff",
+  "displayName": "camp-diff",
+  "description": "チームメンバーの編集箇所をリアルタイムに共有し、変更の衝突に早く気づけるようにするVS Code拡張",
+  "version": "0.0.1",
+  "publisher": "camp-diff",
+  "private": true,
+  "engines": {
+    "vscode": "^1.134.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "campDiff",
+          "title": "camp-diff",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "campDiff": [
+        {
+          "id": "campDiff.mainView",
+          "name": "camp-diff"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc --noEmit",
+    "lint": "eslint src",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.4.0",
+    "@types/vscode": "^1.134.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.9.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.68.0"
+  }
+}
