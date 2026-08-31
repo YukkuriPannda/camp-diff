@@ -7,16 +7,18 @@ import { LocalStaleness } from './presence/staleness';
 import { IdentityService } from './identity/identityService';
 import { IgnoreService } from './ignore/ignoreService';
 import { WebviewBridge } from './net/webviewBridge';
-import { ConflictInfo, Member } from './types';
+import { ConflictInfo, FileRange, Member } from './types';
 import { GitService, GitWorkspaceState } from './git/gitService';
 import { computeRoomKey } from './git/roomKey';
 import { getRemoteName } from './config';
+import { ConflictDecorations } from './ui/decorations';
 
 let outputChannel: vscode.OutputChannel;
 
 export interface CampDiffTestApi {
   getMembers(): Member[];
   getConflicts(): ConflictInfo[];
+  getDecoratedRanges(): FileRange[];
   getTreeRootTypes(): string[];
   isConnected(): boolean;
 }
@@ -41,6 +43,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
 
   const treeProvider = new CampDiffTreeProvider(presenceStore, gitService.getState());
   context.subscriptions.push(treeProvider, vscode.window.registerTreeDataProvider('campDiff.mainView', treeProvider));
+
+  const decorations = new ConflictDecorations(treeProvider);
+  context.subscriptions.push(decorations);
 
   const webviewBridge = new WebviewBridge(
     context,
@@ -88,6 +93,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
     return {
       getMembers: () => presenceStore.getMembers(),
       getConflicts: () => treeProvider.getConflicts(),
+      getDecoratedRanges: () => decorations.getDecoratedRanges(),
       getTreeRootTypes: () => treeProvider.getChildren().map((element) => element.type),
       isConnected: () => webviewBridge.isConnected,
     };
