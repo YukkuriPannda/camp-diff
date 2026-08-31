@@ -5,10 +5,11 @@ import { PresenceStore } from './presence/presenceStore';
 import { EditorTracker } from './presence/editorTracker';
 import { LocalStaleness } from './presence/staleness';
 import { IdentityService } from './identity/identityService';
+import { IgnoreService } from './ignore/ignoreService';
 
 let outputChannel: vscode.OutputChannel;
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
   outputChannel = vscode.window.createOutputChannel('camp-diff');
   context.subscriptions.push(outputChannel);
   outputChannel.appendLine('camp-diff activated');
@@ -24,7 +25,11 @@ export function activate(context: vscode.ExtensionContext): void {
   const staleness = new LocalStaleness(() => presenceStore.clearLocalFiles());
   context.subscriptions.push(staleness);
 
-  const editorTracker = new EditorTracker((ranges) => {
+  const ignoreService = new IgnoreService(vscode.workspace.workspaceFolders?.[0]?.uri);
+  context.subscriptions.push(ignoreService);
+  await ignoreService.initialize();
+
+  const editorTracker = new EditorTracker(ignoreService, (ranges) => {
     presenceStore.setLocalFiles(ranges);
     staleness.touch();
   });

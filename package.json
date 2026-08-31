@@ -64,12 +64,18 @@
     "vscode:prepublish": "npm run build",
     "build": "node esbuild.js --production",
     "watch": "node esbuild.js --watch",
-    "compile": "tsc --noEmit",
+    "compile": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "compile:test": "tsc -p tsconfig.test.json",
+    "test": "npm run compile:test && vscode-test",
     "lint": "eslint src",
     "package": "vsce package"
   },
+  "dependencies": {
+    "ignore": "^7.0.8"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^26.4.0",
     "@types/vscode": "^1.134.0",
     "@vscode/test-cli": "^0.0.15",
