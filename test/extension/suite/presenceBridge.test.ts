@@ -80,9 +80,16 @@ suite('camp-diff P2P bridge (real WebRTC via a fake peer)', () => {
     const [conflict] = api.getConflicts();
     assert.equal(conflict.filePath, 'sample.ts');
     assert.deepEqual(api.getTreeRootTypes(), ['connectionStatus', 'repositoryStatus', 'conflictsSection', 'membersSection']);
+    await waitUntil(
+      () => api.getDecoratedRanges().length === 1,
+      10_000,
+      'decorations to target the local side of the conflict',
+    );
+    assert.deepEqual(api.getDecoratedRanges(), [{ filePath: 'sample.ts', startLine: 3, endLine: 5 }]);
 
     editor.selection = new vscode.Selection(15, 0, 17, 0);
     await waitUntil(() => api.getConflicts().length === 0, 10_000, 'tree provider to clear the resolved conflict');
+    await waitUntil(() => api.getDecoratedRanges().length === 0, 10_000, 'decorations to clear the resolved conflict');
     assert.deepEqual(api.getTreeRootTypes(), ['connectionStatus', 'repositoryStatus', 'membersSection']);
   });
 });
