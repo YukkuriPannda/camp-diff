@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Check the tag matches package.json
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match package.json version ${pkg_version}." >&2
+            echo "Bump the version in package.json and retag." >&2
+            exit 1
+          fi
+          echo "VSIX_PATH=camp-diff-${pkg_version}.vsix" >> "$GITHUB_ENV"
+
+      - run: npm run lint
+      - run: npm run compile
+      - name: Unit tests
+        run: xvfb-run -a npm test
+      - name: Packaging check
+        run: xvfb-run -a npm run test:package
+
+      - name: Build the .vsix
+        run: npm run package
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "${GITHUB_REF_NAME}" in
+            *-*) prerelease="--prerelease" ;;
+          esac
+          gh release create "${GITHUB_REF_NAME}" "${VSIX_PATH}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            ${prerelease}

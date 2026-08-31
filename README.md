@@ -107,7 +107,19 @@ camp-diffはマーケットプレイスに公開していません。`.vsix`を�
 
 P2P接続はWebRTCのハンドシェイクを中継するシグナリングサーバー経由で確立します。公開サーバーは用意していないため、チームで1つ立ててください。手順は[`signaling-server/README.md`](signaling-server/README.md)にあります（Dockerfile同梱）。中継するのはSDP/ICEだけで、presenceの中身は通りません。
 
-### 2. `.vsix`をビルドして配る
+### 2. `.vsix`を配る
+
+バージョンタグを打つと、GitHub Actionsがlint・型チェック・単体テスト・パッケージ検証を通したうえで`.vsix`をビルドし、GitHub Releasesに添付します。
+
+```powershell
+# package.json の version を上げてコミットしてから
+git tag v0.0.2
+git push origin v0.0.2
+```
+
+タグと`package.json`の`version`が食い違っているとワークフローは失敗します。`v0.1.0-beta.1`のようにハイフンを含むタグはプレリリースとして公開されます。
+
+手元でビルドして直接渡すこともできます。
 
 ```powershell
 git clone https://github.com/YukkuriPannda/camp-diff.git
@@ -115,8 +127,6 @@ cd camp-diff
 npm install
 npm run package         # camp-diff-0.0.1.vsix を生成
 ```
-
-生成された`.vsix`をメンバーに渡します（GitHubのReleasesに添付する、共有フォルダに置く、など）。
 
 ### 3. 各メンバーがインストールする
 
@@ -170,4 +180,7 @@ npm run compile            # tscによる型チェックのみ
 npm test                   # 単体テスト（VS Codeホスト上で実行）
 npm run test:integration   # 実WebRTCでのP2P疎通・衝突検知の統合テスト
 npm run test:package       # .vsixを生成しクリーンなプロファイルで起動確認
+npm run package            # .vsix を生成
 ```
+
+プッシュとプルリクエストでは`.github/workflows/ci.yml`が上記のチェックとP2P統合テストを実行し、`v*`タグでは`.github/workflows/release.yml`がリリースを作成します。
