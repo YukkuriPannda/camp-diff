@@ -7,12 +7,14 @@ import { LocalStaleness } from './presence/staleness';
 import { IdentityService } from './identity/identityService';
 import { IgnoreService } from './ignore/ignoreService';
 import { WebviewBridge } from './net/webviewBridge';
-import { Member } from './types';
+import { ConflictInfo, Member } from './types';
 
 let outputChannel: vscode.OutputChannel;
 
 export interface CampDiffTestApi {
   getMembers(): Member[];
+  getConflicts(): ConflictInfo[];
+  getTreeRootTypes(): string[];
   isConnected(): boolean;
 }
 
@@ -25,7 +27,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
   context.subscriptions.push(presenceStore);
 
   const treeProvider = new CampDiffTreeProvider(presenceStore);
-  context.subscriptions.push(vscode.window.registerTreeDataProvider('campDiff.mainView', treeProvider));
+  context.subscriptions.push(treeProvider, vscode.window.registerTreeDataProvider('campDiff.mainView', treeProvider));
 
   const webviewBridge = new WebviewBridge(
     context,
@@ -62,6 +64,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
   if (context.extensionMode === vscode.ExtensionMode.Test) {
     return {
       getMembers: () => presenceStore.getMembers(),
+      getConflicts: () => treeProvider.getConflicts(),
+      getTreeRootTypes: () => treeProvider.getChildren().map((element) => element.type),
       isConnected: () => webviewBridge.isConnected,
     };
   }

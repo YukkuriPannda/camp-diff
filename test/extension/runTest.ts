@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import * as os from 'node:os';
 import { spawn, ChildProcess } from 'node:child_process';
 import { runTests } from '@vscode/test-electron';
@@ -8,6 +9,21 @@ const SIGNALING_PORT = 14444;
 const DEVELOPMENT_ROOM = 'campdiff-dev-room';
 const FAKE_PEER_ID = 'fake-peer-integration-test';
 const FAKE_PEER_USERNAME = 'FakePeer';
+const FAKE_PEER_RANGE = { filePath: 'sample.ts', startLine: 4, endLine: 8 };
+
+function findVsCodeExecutable(): string | undefined {
+  if (process.env.CAMP_DIFF_VSCODE_EXECUTABLE) {
+    return process.env.CAMP_DIFF_VSCODE_EXECUTABLE;
+  }
+  if (process.platform !== 'win32') {
+    return undefined;
+  }
+  const candidates = [
+    process.env.LOCALAPPDATA && path.resolve(process.env.LOCALAPPDATA, 'Programs', 'Microsoft VS Code', 'Code.exe'),
+    process.env.PROGRAMFILES && path.resolve(process.env.PROGRAMFILES, 'Microsoft VS Code', 'Code.exe'),
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  return candidates.find((candidate) => existsSync(candidate));
+}
 
 function waitForStdout(child: ChildProcess, marker: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -50,6 +66,7 @@ async function startFakePeer(signalingUrl: string, statusFilePath: string): Prom
       statusFilePath,
       FAKE_PEER_ID,
       FAKE_PEER_USERNAME,
+      JSON.stringify(FAKE_PEER_RANGE),
     ],
     { stdio: ['ignore', 'pipe', 'inherit'] },
   );
@@ -82,11 +99,13 @@ async function main(): Promise<void> {
     const exitCode = await runTests({
       extensionDevelopmentPath,
       extensionTestsPath,
+      vscodeExecutablePath: findVsCodeExecutable(),
       launchArgs: [workspacePath, '--disable-extensions', '--disable-gpu', '--disable-workspace-trust'],
       extensionTestsEnv: {
         CAMP_DIFF_TEST_SIGNALING_URL: signalingUrl,
         CAMP_DIFF_TEST_FAKE_PEER_ID: FAKE_PEER_ID,
         CAMP_DIFF_TEST_FAKE_PEER_USERNAME: FAKE_PEER_USERNAME,
+        CAMP_DIFF_TEST_FAKE_PEER_RANGE: JSON.stringify(FAKE_PEER_RANGE),
         CAMP_DIFF_TEST_STATUS_FILE: statusFilePath,
       },
     });
