@@ -1,17 +1,45 @@
 import * as vscode from 'vscode';
+import { FileRange, Member } from '../types';
+import { PresenceStore } from '../presence/presenceStore';
+import { ConnectionStatusItem, MembersSectionItem, MemberItem, MemberFileItem } from './treeItems';
 
-export class CampDiffTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
+type CampDiffTreeElement =
+  | { type: 'connectionStatus' }
+  | { type: 'membersSection' }
+  | { type: 'member'; member: Member }
+  | { type: 'memberFile'; member: Member; range: FileRange };
+
+export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTreeElement> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
-  getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
-    return element;
+  constructor(private readonly presenceStore: PresenceStore) {
+    presenceStore.onDidChange(() => this.onDidChangeTreeDataEmitter.fire());
   }
 
-  getChildren(element?: vscode.TreeItem): vscode.TreeItem[] {
-    if (element) {
-      return [];
+  getTreeItem(element: CampDiffTreeElement): vscode.TreeItem {
+    switch (element.type) {
+      case 'connectionStatus':
+        return new ConnectionStatusItem(false);
+      case 'membersSection':
+        return new MembersSectionItem(this.presenceStore.getMembers().length);
+      case 'member':
+        return new MemberItem(element.member);
+      case 'memberFile':
+        return new MemberFileItem(element.member, element.range);
     }
-    return [new vscode.TreeItem('camp-diff is not connected yet', vscode.TreeItemCollapsibleState.None)];
+  }
+
+  getChildren(element?: CampDiffTreeElement): CampDiffTreeElement[] {
+    if (!element) {
+      return [{ type: 'connectionStatus' }, { type: 'membersSection' }];
+    }
+    if (element.type === 'membersSection') {
+      return this.presenceStore.getMembers().map((member) => ({ type: 'member', member }));
+    }
+    if (element.type === 'member') {
+      return element.member.files.map((range) => ({ type: 'memberFile', member: element.member, range }));
+    }
+    return [];
   }
 }

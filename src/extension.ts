@@ -1,5 +1,10 @@
 import * as vscode from 'vscode';
 import { CampDiffTreeProvider } from './ui/treeDataProvider';
+import { registerCommands } from './ui/commands';
+import { PresenceStore } from './presence/presenceStore';
+import { EditorTracker } from './presence/editorTracker';
+import { LocalStaleness } from './presence/staleness';
+import { IdentityService } from './identity/identityService';
 
 let outputChannel: vscode.OutputChannel;
 
@@ -8,8 +13,27 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(outputChannel);
   outputChannel.appendLine('camp-diff activated');
 
-  const treeProvider = new CampDiffTreeProvider();
+  const presenceStore = new PresenceStore();
+  context.subscriptions.push(presenceStore);
+
+  const identityService = new IdentityService();
+  void identityService.resolveUsername().then((username) => {
+    presenceStore.setUsername(username);
+  });
+
+  const staleness = new LocalStaleness(() => presenceStore.clearLocalFiles());
+  context.subscriptions.push(staleness);
+
+  const editorTracker = new EditorTracker((ranges) => {
+    presenceStore.setLocalFiles(ranges);
+    staleness.touch();
+  });
+  context.subscriptions.push(editorTracker);
+
+  const treeProvider = new CampDiffTreeProvider(presenceStore);
   context.subscriptions.push(vscode.window.registerTreeDataProvider('campDiff.mainView', treeProvider));
+
+  registerCommands(context, identityService, presenceStore);
 }
 
 export function deactivate(): void {

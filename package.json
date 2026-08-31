@@ -30,6 +30,34 @@
           "name": "camp-diff"
         }
       ]
+    },
+    "commands": [
+      {
+        "command": "campDiff.setUsername",
+        "title": "camp-diff: Set Username"
+      }
+    ],
+    "configuration": {
+      "title": "camp-diff",
+      "properties": {
+        "campDiff.username": {
+          "type": "string",
+          "default": "",
+          "description": "他のメンバーに表示されるユーザー名。未設定の場合はgit config user.name、OSのユーザー名の順に自動解決します。"
+        },
+        "campDiff.cursorContextLines": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "description": "選択範囲が空のとき、カーソル行の前後何行を編集中の範囲として共有するか。"
+        },
+        "campDiff.idleTimeoutSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 5,
+          "description": "この秒数だけ編集操作がない場合、自分の編集箇所をほかのメンバーから見えなくします。"
+        }
+      }
     }
   },
   "scripts": {
