@@ -17,3 +17,7 @@ export function getCursorContextLines(): number {
 export function getIdleTimeoutSeconds(): number {
   return vscode.workspace.getConfiguration(SECTION).get<number>('idleTimeoutSeconds', 120);
 }
+
+export function getConflictProximityLines(): number {
+  return vscode.workspace.getConfiguration(SECTION).get<number>('conflictProximityLines', 3);
+}

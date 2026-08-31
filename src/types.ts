@@ -11,3 +11,11 @@ export interface Member {
   files: FileRange[];
   updatedAt: number;
 }
+
+export interface ConflictInfo {
+  filePath: string;
+  memberA: Member;
+  rangeA: FileRange;
+  memberB: Member;
+  rangeB: FileRange;
+}
