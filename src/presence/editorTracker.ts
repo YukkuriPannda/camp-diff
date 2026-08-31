@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { FileRange } from '../types';
 import * as config from '../config';
+import { IgnoreService } from '../ignore/ignoreService';
 
 function toPosixPath(p: string): string {
   return p.split('\\').join('/');
@@ -10,10 +11,14 @@ export class EditorTracker implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private cursorContextLines = config.getCursorContextLines();
 
-  constructor(private readonly onChange: (ranges: FileRange[]) => void) {
+  constructor(
+    private readonly ignoreService: IgnoreService,
+    private readonly onChange: (ranges: FileRange[]) => void,
+  ) {
     this.disposables.push(
       vscode.window.onDidChangeTextEditorSelection(() => this.publish()),
       vscode.window.onDidChangeActiveTextEditor(() => this.publish()),
+      this.ignoreService.onDidChange(() => this.publish()),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('campDiff.cursorContextLines')) {
           this.cursorContextLines = config.getCursorContextLines();
@@ -38,6 +43,9 @@ export class EditorTracker implements vscode.Disposable {
     }
 
     const filePath = toPosixPath(vscode.workspace.asRelativePath(editor.document.uri, false));
+    if (this.ignoreService.isIgnored(filePath)) {
+      return [];
+    }
     const selection = editor.selection;
     const lastLine = editor.document.lineCount - 1;
 
