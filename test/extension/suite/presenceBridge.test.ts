@@ -29,12 +29,18 @@ suite('camp-diff P2P bridge (real WebRTC via a fake peer)', () => {
     const signalingUrl = process.env.CAMP_DIFF_TEST_SIGNALING_URL;
     const fakePeerId = process.env.CAMP_DIFF_TEST_FAKE_PEER_ID;
     const fakePeerUsername = process.env.CAMP_DIFF_TEST_FAKE_PEER_USERNAME;
+    const fakePeerRangeJson = process.env.CAMP_DIFF_TEST_FAKE_PEER_RANGE;
     const statusFilePath = process.env.CAMP_DIFF_TEST_STATUS_FILE;
-    assert.ok(signalingUrl && fakePeerId && fakePeerUsername && statusFilePath, 'test runner did not set required env vars');
+    assert.ok(
+      signalingUrl && fakePeerId && fakePeerUsername && fakePeerRangeJson && statusFilePath,
+      'test runner did not set required env vars',
+    );
+    const fakePeerRange = JSON.parse(fakePeerRangeJson) as FileRange;
 
     const config = vscode.workspace.getConfiguration('campDiff');
     await config.update('username', 'IntegrationTestUser', vscode.ConfigurationTarget.Global);
     await config.update('signalingServerUrls', [signalingUrl], vscode.ConfigurationTarget.Global);
+    await config.update('conflictProximityLines', 3, vscode.ConfigurationTarget.Global);
 
     const extension = vscode.extensions.getExtension<CampDiffTestApi>('camp-diff.camp-diff');
     assert.ok(extension, 'camp-diff extension not found');
@@ -68,6 +74,15 @@ suite('camp-diff P2P bridge (real WebRTC via a fake peer)', () => {
     assert.ok(fakeMember, 'fake peer member missing from getMembers()');
     assert.equal(fakeMember.username, fakePeerUsername);
     assert.equal(fakeMember.isLocal, false);
-    assert.deepEqual(fakeMember.files, [{ filePath: 'fake/other.ts', startLine: 10, endLine: 14 }]);
+    assert.deepEqual(fakeMember.files, [fakePeerRange]);
+
+    await waitUntil(() => api.getConflicts().length === 1, 10_000, 'tree provider to detect the overlapping ranges');
+    const [conflict] = api.getConflicts();
+    assert.equal(conflict.filePath, 'sample.ts');
+    assert.deepEqual(api.getTreeRootTypes(), ['connectionStatus', 'conflictsSection', 'membersSection']);
+
+    editor.selection = new vscode.Selection(15, 0, 17, 0);
+    await waitUntil(() => api.getConflicts().length === 0, 10_000, 'tree provider to clear the resolved conflict');
+    assert.deepEqual(api.getTreeRootTypes(), ['connectionStatus', 'membersSection']);
   });
 });

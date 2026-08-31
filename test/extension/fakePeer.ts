@@ -2,10 +2,13 @@ import * as fs from 'node:fs';
 import wrtc from '@roamhq/wrtc';
 
 async function main(): Promise<void> {
-  const [, , signalingUrl, roomName, statusFilePath, peerId, peerUsername] = process.argv;
-  if (!signalingUrl || !roomName || !statusFilePath || !peerId || !peerUsername) {
-    throw new Error('usage: fakePeer.js <signalingUrl> <roomName> <statusFilePath> <peerId> <peerUsername>');
+  const [, , signalingUrl, roomName, statusFilePath, peerId, peerUsername, peerRangeJson] = process.argv;
+  if (!signalingUrl || !roomName || !statusFilePath || !peerId || !peerUsername || !peerRangeJson) {
+    throw new Error(
+      'usage: fakePeer.js <signalingUrl> <roomName> <statusFilePath> <peerId> <peerUsername> <peerRangeJson>',
+    );
   }
+  const peerRange = JSON.parse(peerRangeJson) as { filePath: string; startLine: number; endLine: number };
 
   if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === 'undefined') {
     const { WebSocket } = await import('ws');
@@ -37,7 +40,7 @@ async function main(): Promise<void> {
     presence: {
       id: peerId,
       username: peerUsername,
-      files: [{ filePath: 'fake/other.ts', startLine: 10, endLine: 14 }],
+      files: [peerRange],
       updatedAt: Date.now(),
     },
     heartbeatAt: Date.now(),
