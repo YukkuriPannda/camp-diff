@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 function findVsCodeExecutable() {
-  if (process.env.VSCODE_EXECUTABLE_PATH) {
-    return process.env.VSCODE_EXECUTABLE_PATH;
+  if (process.env.CAMP_DIFF_VSCODE_EXECUTABLE) {
+    return process.env.CAMP_DIFF_VSCODE_EXECUTABLE;
   }
   if (process.platform !== 'win32') {
     return undefined;
@@ -20,7 +20,16 @@ function findVsCodeExecutable() {
 const vscodeExecutablePath = findVsCodeExecutable();
 
 export default defineConfig({
-  files: 'out/test/suite/**/*.test.js',
-  launchArgs: ['--disable-extensions', '--disable-gpu', '--disable-workspace-trust'],
+  files: 'out/test/**/*.test.js',
   useInstallation: vscodeExecutablePath ? { fromPath: vscodeExecutablePath } : undefined,
+  launchArgs: [
+    '--disable-extensions',
+    '--disable-gpu',
+    '--disable-workspace-trust',
+    '--skip-release-notes',
+    '--skip-welcome',
+  ],
+  mocha: {
+    timeout: 10_000,
+  },
 });

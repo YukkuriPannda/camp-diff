@@ -56,6 +56,12 @@
           "default": 120,
           "minimum": 5,
           "description": "この秒数だけ編集操作がない場合、自分の編集箇所をほかのメンバーから見えなくします。"
+        },
+        "campDiff.conflictProximityLines": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "description": "編集範囲が重なっていなくても衝突の可能性ありとみなす、範囲間の最大行数です。"
         }
       }
     }
@@ -65,9 +71,9 @@
     "build": "node esbuild.js --production",
     "watch": "node esbuild.js --watch",
     "compile": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
-    "compile:test": "tsc -p tsconfig.test.json",
-    "test": "npm run compile:test && vscode-test",
     "lint": "eslint src",
+    "test:compile": "tsc -p tsconfig.test.json",
+    "test": "npm run test:compile && vscode-test",
     "package": "vsce package"
   },
   "dependencies": {
