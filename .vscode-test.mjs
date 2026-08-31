@@ -20,7 +20,7 @@ function findVsCodeExecutable() {
 const vscodeExecutablePath = findVsCodeExecutable();
 
 export default defineConfig({
-  files: 'out/test/**/*.test.js',
+  files: 'out/test/suite/**/*.test.js',
   useInstallation: vscodeExecutablePath ? { fromPath: vscodeExecutablePath } : undefined,
   launchArgs: [
     '--disable-extensions',

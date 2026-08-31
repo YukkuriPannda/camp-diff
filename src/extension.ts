@@ -7,10 +7,16 @@ import { LocalStaleness } from './presence/staleness';
 import { IdentityService } from './identity/identityService';
 import { IgnoreService } from './ignore/ignoreService';
 import { WebviewBridge } from './net/webviewBridge';
+import { Member } from './types';
 
 let outputChannel: vscode.OutputChannel;
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export interface CampDiffTestApi {
+  getMembers(): Member[];
+  isConnected(): boolean;
+}
+
+export async function activate(context: vscode.ExtensionContext): Promise<CampDiffTestApi | void> {
   outputChannel = vscode.window.createOutputChannel('camp-diff');
   context.subscriptions.push(outputChannel);
   outputChannel.appendLine('camp-diff activated');
@@ -52,6 +58,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(editorTracker);
 
   registerCommands(context, identityService, presenceStore);
+
+  if (context.extensionMode === vscode.ExtensionMode.Test) {
+    return {
+      getMembers: () => presenceStore.getMembers(),
+      isConnected: () => webviewBridge.isConnected,
+    };
+  }
 }
 
 export function deactivate(): void {
