@@ -19,3 +19,10 @@ export interface ConflictInfo {
   memberB: Member;
   rangeB: FileRange;
 }
+
+export interface PresenceState {
+  id: string;
+  username: string;
+  files: FileRange[];
+  updatedAt: number;
+}

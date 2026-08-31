@@ -12,15 +12,24 @@ type CampDiffTreeElement =
 export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTreeElement> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
+  private connected = false;
 
   constructor(private readonly presenceStore: PresenceStore) {
     presenceStore.onDidChange(() => this.onDidChangeTreeDataEmitter.fire());
   }
 
+  setConnected(connected: boolean): void {
+    if (this.connected === connected) {
+      return;
+    }
+    this.connected = connected;
+    this.onDidChangeTreeDataEmitter.fire();
+  }
+
   getTreeItem(element: CampDiffTreeElement): vscode.TreeItem {
     switch (element.type) {
       case 'connectionStatus':
-        return new ConnectionStatusItem(false);
+        return new ConnectionStatusItem(this.connected);
       case 'membersSection':
         return new MembersSectionItem(this.presenceStore.getMembers().length);
       case 'member':

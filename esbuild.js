@@ -1,4 +1,5 @@
 const esbuild = require('esbuild');
+const fs = require('node:fs/promises');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -22,27 +23,58 @@ const watchPlugin = {
   },
 };
 
+const copyWebviewHtmlPlugin = {
+  name: 'copy-webview-html',
+  setup(build) {
+    build.onEnd(async (result) => {
+      if (result.errors.length > 0) {
+        return;
+      }
+      await fs.mkdir('dist/webview', { recursive: true });
+      await fs.copyFile(
+        'src/net/webview/presence-bridge.html',
+        'dist/webview/presence-bridge.html',
+      );
+    });
+  },
+};
+
 async function main() {
-  const ctx = await esbuild.context({
-    entryPoints: ['src/extension.ts'],
-    bundle: true,
-    format: 'cjs',
-    platform: 'node',
-    target: 'node20',
-    outfile: 'dist/extension.js',
-    external: ['vscode'],
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    logLevel: 'silent',
-    plugins: [watchPlugin],
-  });
+  const contexts = await Promise.all([
+    esbuild.context({
+      entryPoints: ['src/extension.ts'],
+      bundle: true,
+      format: 'cjs',
+      platform: 'node',
+      target: 'node20',
+      outfile: 'dist/extension.js',
+      external: ['vscode'],
+      minify: production,
+      sourcemap: !production,
+      sourcesContent: false,
+      logLevel: 'silent',
+      plugins: [watchPlugin],
+    }),
+    esbuild.context({
+      entryPoints: ['src/net/webview/presence-bridge.ts'],
+      bundle: true,
+      format: 'iife',
+      platform: 'browser',
+      target: 'chrome120',
+      outfile: 'dist/webview/presence-bridge.js',
+      minify: production,
+      sourcemap: !production,
+      sourcesContent: false,
+      logLevel: 'silent',
+      plugins: [watchPlugin, copyWebviewHtmlPlugin],
+    }),
+  ]);
 
   if (watch) {
-    await ctx.watch();
+    await Promise.all(contexts.map((context) => context.watch()));
   } else {
-    await ctx.rebuild();
-    await ctx.dispose();
+    await Promise.all(contexts.map((context) => context.rebuild()));
+    await Promise.all(contexts.map((context) => context.dispose()));
   }
 }
 

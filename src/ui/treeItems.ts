@@ -3,7 +3,7 @@ import { FileRange, Member } from '../types';
 
 export class ConnectionStatusItem extends vscode.TreeItem {
   constructor(connected: boolean) {
-    super(connected ? '● Connected' : '○ Offline (local only)', vscode.TreeItemCollapsibleState.None);
+    super(connected ? '● Connected' : '○ Disconnected', vscode.TreeItemCollapsibleState.None);
     this.contextValue = 'campDiff.connectionStatus';
   }
 }
