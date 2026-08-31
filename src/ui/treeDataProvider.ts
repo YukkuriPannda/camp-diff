@@ -10,10 +10,13 @@ import {
   MembersSectionItem,
   MemberItem,
   MemberFileItem,
+  RepositoryStatusItem,
 } from './treeItems';
+import { GitWorkspaceState } from '../git/gitService';
 
 type CampDiffTreeElement =
   | { type: 'connectionStatus' }
+  | { type: 'repositoryStatus' }
   | { type: 'conflictsSection' }
   | { type: 'conflict'; conflict: ConflictInfo }
   | { type: 'membersSection' }
@@ -27,7 +30,10 @@ export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTre
   private connected = false;
   private conflicts: ConflictInfo[] = [];
 
-  constructor(private readonly presenceStore: PresenceStore) {
+  constructor(
+    private readonly presenceStore: PresenceStore,
+    private gitState: GitWorkspaceState,
+  ) {
     this.recalculateConflicts();
     this.disposables.push(
       presenceStore.onDidChange(() => {
@@ -55,7 +61,12 @@ export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTre
     );
   }
 
-  private matchesConflictSide(member: Member, range: FileRange, conflictMember: Member, conflictRange: FileRange): boolean {
+  private matchesConflictSide(
+    member: Member,
+    range: FileRange,
+    conflictMember: Member,
+    conflictRange: FileRange,
+  ): boolean {
     return (
       member.id === conflictMember.id &&
       range.filePath === conflictRange.filePath &&
@@ -66,6 +77,11 @@ export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTre
 
   getConflicts(): ConflictInfo[] {
     return [...this.conflicts];
+  }
+
+  setGitState(gitState: GitWorkspaceState): void {
+    this.gitState = gitState;
+    this.onDidChangeTreeDataEmitter.fire();
   }
 
   setConnected(connected: boolean): void {
@@ -80,6 +96,8 @@ export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTre
     switch (element.type) {
       case 'connectionStatus':
         return new ConnectionStatusItem(this.connected);
+      case 'repositoryStatus':
+        return new RepositoryStatusItem(this.gitState);
       case 'conflictsSection':
         return new ConflictsSectionItem(this.conflicts.length);
       case 'conflict':
@@ -95,7 +113,7 @@ export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTre
 
   getChildren(element?: CampDiffTreeElement): CampDiffTreeElement[] {
     if (!element) {
-      const root: CampDiffTreeElement[] = [{ type: 'connectionStatus' }];
+      const root: CampDiffTreeElement[] = [{ type: 'connectionStatus' }, { type: 'repositoryStatus' }];
       if (this.conflicts.length > 0) {
         root.push({ type: 'conflictsSection' });
       }

@@ -2,14 +2,18 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import * as os from 'node:os';
-import { spawn, ChildProcess } from 'node:child_process';
+import { execFile, spawn, ChildProcess } from 'node:child_process';
+import { promisify } from 'node:util';
 import { runTests } from '@vscode/test-electron';
+import { computeRoomKey } from '../../src/git/roomKey';
 
 const SIGNALING_PORT = 14444;
-const DEVELOPMENT_ROOM = 'campdiff-dev-room';
+const TEST_REMOTE_URL = 'https://example.com/camp-diff/integration-fixture.git';
+const TEST_BRANCH = 'main';
 const FAKE_PEER_ID = 'fake-peer-integration-test';
 const FAKE_PEER_USERNAME = 'FakePeer';
 const FAKE_PEER_RANGE = { filePath: 'sample.ts', startLine: 4, endLine: 8 };
+const execFileAsync = promisify(execFile);
 
 function findVsCodeExecutable(): string | undefined {
   if (process.env.CAMP_DIFF_VSCODE_EXECUTABLE) {
@@ -56,13 +60,17 @@ async function startSignalingServer(): Promise<ChildProcess> {
   return child;
 }
 
-async function startFakePeer(signalingUrl: string, statusFilePath: string): Promise<ChildProcess> {
+async function startFakePeer(
+  signalingUrl: string,
+  roomName: string,
+  statusFilePath: string,
+): Promise<ChildProcess> {
   const child = spawn(
     process.execPath,
     [
       path.resolve(__dirname, 'fakePeer.js'),
       signalingUrl,
-      DEVELOPMENT_ROOM,
+      roomName,
       statusFilePath,
       FAKE_PEER_ID,
       FAKE_PEER_USERNAME,
@@ -76,6 +84,13 @@ async function startFakePeer(signalingUrl: string, statusFilePath: string): Prom
 
 async function createTestWorkspace(): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'camp-diff-integration-'));
+  const gitEnv = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+  };
+  await execFileAsync('git', ['init'], { cwd: dir, env: gitEnv });
+  await execFileAsync('git', ['checkout', '-b', TEST_BRANCH], { cwd: dir, env: gitEnv });
+  await execFileAsync('git', ['remote', 'add', 'origin', TEST_REMOTE_URL], { cwd: dir, env: gitEnv });
   await fs.writeFile(
     path.join(dir, 'sample.ts'),
     Array.from({ length: 20 }, (_, i) => `const line${i + 1} = ${i + 1};`).join('\n') + '\n',
@@ -88,19 +103,30 @@ async function main(): Promise<void> {
   const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
   const extensionTestsPath = path.resolve(__dirname, 'index.js');
   const signalingUrl = `ws://127.0.0.1:${SIGNALING_PORT}`;
+  const vscodeExecutablePath = findVsCodeExecutable();
 
   const signalingServer = await startSignalingServer();
   const workspacePath = await createTestWorkspace();
+  const roomName = computeRoomKey(TEST_REMOTE_URL, TEST_BRANCH);
+  if (!roomName) {
+    throw new Error('failed to derive the integration test room key');
+  }
   const statusFilePath = path.join(workspacePath, '.fake-peer-status.json');
   await fs.writeFile(statusFilePath, '[]', 'utf8');
-  const fakePeer = await startFakePeer(signalingUrl, statusFilePath);
+  const fakePeer = await startFakePeer(signalingUrl, roomName, statusFilePath);
 
   try {
     const exitCode = await runTests({
       extensionDevelopmentPath,
       extensionTestsPath,
-      vscodeExecutablePath: findVsCodeExecutable(),
-      launchArgs: [workspacePath, '--disable-extensions', '--disable-gpu', '--disable-workspace-trust'],
+      vscodeExecutablePath,
+      launchArgs: [
+        workspacePath,
+        '--disable-gpu',
+        '--disable-workspace-trust',
+        '--skip-release-notes',
+        '--skip-welcome',
+      ],
       extensionTestsEnv: {
         CAMP_DIFF_TEST_SIGNALING_URL: signalingUrl,
         CAMP_DIFF_TEST_FAKE_PEER_ID: FAKE_PEER_ID,

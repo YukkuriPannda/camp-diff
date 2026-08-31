@@ -79,10 +79,10 @@ suite('camp-diff P2P bridge (real WebRTC via a fake peer)', () => {
     await waitUntil(() => api.getConflicts().length === 1, 10_000, 'tree provider to detect the overlapping ranges');
     const [conflict] = api.getConflicts();
     assert.equal(conflict.filePath, 'sample.ts');
-    assert.deepEqual(api.getTreeRootTypes(), ['connectionStatus', 'conflictsSection', 'membersSection']);
+    assert.deepEqual(api.getTreeRootTypes(), ['connectionStatus', 'repositoryStatus', 'conflictsSection', 'membersSection']);
 
     editor.selection = new vscode.Selection(15, 0, 17, 0);
     await waitUntil(() => api.getConflicts().length === 0, 10_000, 'tree provider to clear the resolved conflict');
-    assert.deepEqual(api.getTreeRootTypes(), ['connectionStatus', 'membersSection']);
+    assert.deepEqual(api.getTreeRootTypes(), ['connectionStatus', 'repositoryStatus', 'membersSection']);
   });
 });

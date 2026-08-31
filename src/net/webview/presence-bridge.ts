@@ -80,6 +80,12 @@ function destroyProvider(): void {
   providerStatus = 'disconnected';
 }
 
+function disconnect(): void {
+  destroyProvider();
+  postMessage({ type: 'awarenessUpdate', peers: [] });
+  postMessage({ type: 'providerStatus', status: 'disconnected', peerCount: 0 });
+}
+
 function initialize(message: Extract<HostToWebviewMessage, { type: 'initialize' }>): void {
   destroyProvider();
   localPresence = message.localPresence;
@@ -125,6 +131,9 @@ function handleMessage(value: unknown): void {
     case 'updateLocalPresence':
       localPresence = value.localPresence;
       publishLocalPresence();
+      break;
+    case 'disconnect':
+      disconnect();
       break;
     case 'ping':
       postMessage({ type: 'pong', sentAt: value.sentAt });

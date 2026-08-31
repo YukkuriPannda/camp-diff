@@ -3,6 +3,9 @@ import * as vscode from 'vscode';
 import { PresenceStore } from '../../src/presence/presenceStore';
 import { CampDiffTreeProvider } from '../../src/ui/treeDataProvider';
 import { FileRange } from '../../src/types';
+import { GitWorkspaceState } from '../../src/git/gitService';
+
+const NO_REPOSITORY_STATE: GitWorkspaceState = { kind: 'noRepository', workspaceName: 'test-workspace' };
 
 suite('CampDiffTreeProvider', () => {
   test('衝突セクションと警告アイコンを表示し、解消後はセクションを隠す', async () => {
@@ -14,12 +17,12 @@ suite('CampDiffTreeProvider', () => {
     const store = new PresenceStore();
     store.setUsername('LocalUser');
     store.setLocalFiles([localRange]);
-    const provider = new CampDiffTreeProvider(store);
+    const provider = new CampDiffTreeProvider(store, NO_REPOSITORY_STATE);
 
     try {
       assert.deepEqual(
         provider.getChildren().map((element) => element.type),
-        ['connectionStatus', 'membersSection'],
+        ['connectionStatus', 'repositoryStatus', 'membersSection'],
       );
 
       store.setRemotePresence([
@@ -34,7 +37,7 @@ suite('CampDiffTreeProvider', () => {
       const root = provider.getChildren();
       assert.deepEqual(
         root.map((element) => element.type),
-        ['connectionStatus', 'conflictsSection', 'membersSection'],
+        ['connectionStatus', 'repositoryStatus', 'conflictsSection', 'membersSection'],
       );
 
       const conflictsSection = root.find((element) => element.type === 'conflictsSection');
@@ -79,7 +82,7 @@ suite('CampDiffTreeProvider', () => {
       assert.equal(provider.getConflicts().length, 0);
       assert.deepEqual(
         provider.getChildren().map((element) => element.type),
-        ['connectionStatus', 'membersSection'],
+        ['connectionStatus', 'repositoryStatus', 'membersSection'],
       );
     } finally {
       provider.dispose();

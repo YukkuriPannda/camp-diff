@@ -3,7 +3,6 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import { PresenceState } from '../types';
 import {
-  DEVELOPMENT_ROOM,
   HostToWebviewMessage,
   isWebviewToHostMessage,
   WebviewToHostMessage,
@@ -25,11 +24,13 @@ export class WebviewBridge implements vscode.Disposable {
   private heartbeatTimeout: ReturnType<typeof setTimeout> | undefined;
   private recreateTimer: ReturnType<typeof setTimeout> | undefined;
   private recreateDelayMs = INITIAL_RECREATE_DELAY_MS;
+  private webviewReady = false;
   private connected = false;
   private disposed = false;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
+    private roomKey: string | undefined,
     private localPresence: PresenceState,
     private readonly onRemotePresence: (peers: PresenceState[]) => void,
     private readonly outputChannel: vscode.OutputChannel,
@@ -44,6 +45,23 @@ export class WebviewBridge implements vscode.Disposable {
   updateLocalPresence(localPresence: PresenceState): void {
     this.localPresence = localPresence;
     this.postMessage({ type: 'updateLocalPresence', localPresence });
+  }
+
+  updateRoomKey(roomKey: string | undefined): void {
+    if (this.roomKey === roomKey) {
+      return;
+    }
+    this.roomKey = roomKey;
+    this.setConnected(false);
+    this.onRemotePresence([]);
+    if (!this.webviewReady) {
+      return;
+    }
+    if (roomKey) {
+      this.initializeProvider(roomKey);
+    } else {
+      this.postMessage({ type: 'disconnect' });
+    }
   }
 
   private createPanel(): void {
@@ -105,14 +123,10 @@ export class WebviewBridge implements vscode.Disposable {
     const message: WebviewToHostMessage = value;
     switch (message.type) {
       case 'ready':
-        this.postMessage({
-          type: 'initialize',
-          roomName: DEVELOPMENT_ROOM,
-          signalingServerUrls: getSignalingServerUrls(),
-          iceServers: getIceServers(),
-          roomPassword: getRoomPassword(),
-          localPresence: this.localPresence,
-        });
+        this.webviewReady = true;
+        if (this.roomKey) {
+          this.initializeProvider(this.roomKey);
+        }
         this.sendPing();
         break;
       case 'pong':
@@ -130,6 +144,17 @@ export class WebviewBridge implements vscode.Disposable {
         this.outputChannel.appendLine(`background sync bridge error: ${message.message}`);
         break;
     }
+  }
+
+  private initializeProvider(roomKey: string): void {
+    this.postMessage({
+      type: 'initialize',
+      roomName: roomKey,
+      signalingServerUrls: getSignalingServerUrls(),
+      iceServers: getIceServers(),
+      roomPassword: getRoomPassword(),
+      localPresence: this.localPresence,
+    });
   }
 
   private startHeartbeat(): void {
@@ -158,7 +183,7 @@ export class WebviewBridge implements vscode.Disposable {
       this.setConnected(false);
     }, HEARTBEAT_TIMEOUT_MS);
     this.recreateDelayMs = INITIAL_RECREATE_DELAY_MS;
-    this.setConnected(true);
+    this.setConnected(this.roomKey !== undefined);
   }
 
   private postMessage(message: HostToWebviewMessage): void {
@@ -185,6 +210,7 @@ export class WebviewBridge implements vscode.Disposable {
 
   private handlePanelDisposed(): void {
     this.panel = undefined;
+    this.webviewReady = false;
     this.messageListener?.dispose();
     this.messageListener = undefined;
     this.stopHeartbeat();
