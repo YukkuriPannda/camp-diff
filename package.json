@@ -66,6 +66,11 @@
           "minimum": 0,
           "description": "編集範囲が重なっていなくても衝突の可能性ありとみなす、範囲間の最大行数です。"
         },
+        "campDiff.remoteName": {
+          "type": "string",
+          "default": "origin",
+          "description": "room keyの導出に使うGit remote名です。fork構成ではupstreamなどに変更できます。"
+        },
         "campDiff.signalingServerUrls": {
           "type": "array",
           "default": [
@@ -109,7 +114,7 @@
         "campDiff.roomPassword": {
           "type": "string",
           "default": "",
-          "description": "固定開発ルームのy-webrtcアプリ層暗号化に使う任意のパスワードです。"
+          "description": "Git由来のルームで使うy-webrtcアプリ層暗号化の任意のパスワードです。"
         }
       }
     }

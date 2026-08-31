@@ -21,3 +21,7 @@ export function getIdleTimeoutSeconds(): number {
 export function getConflictProximityLines(): number {
   return vscode.workspace.getConfiguration(SECTION).get<number>('conflictProximityLines', 3);
 }
+
+export function getRemoteName(): string {
+  return vscode.workspace.getConfiguration(SECTION).get<string>('remoteName', 'origin').trim() || 'origin';
+}

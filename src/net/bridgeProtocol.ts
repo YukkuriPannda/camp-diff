@@ -1,7 +1,5 @@
 import { FileRange, PresenceState } from '../types';
 
-export const DEVELOPMENT_ROOM = 'campdiff-dev-room';
-
 export interface InitializeMessage {
   type: 'initialize';
   roomName: string;
@@ -9,6 +7,10 @@ export interface InitializeMessage {
   iceServers: RTCIceServer[];
   roomPassword?: string;
   localPresence: PresenceState;
+}
+
+export interface DisconnectMessage {
+  type: 'disconnect';
 }
 
 export interface UpdateLocalPresenceMessage {
@@ -21,7 +23,11 @@ export interface PingMessage {
   sentAt: number;
 }
 
-export type HostToWebviewMessage = InitializeMessage | UpdateLocalPresenceMessage | PingMessage;
+export type HostToWebviewMessage =
+  | InitializeMessage
+  | DisconnectMessage
+  | UpdateLocalPresenceMessage
+  | PingMessage;
 
 export interface ReadyMessage {
   type: 'ready';
@@ -96,6 +102,9 @@ export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMe
   }
   if (message.type === 'updateLocalPresence') {
     return isPresenceState(message.localPresence);
+  }
+  if (message.type === 'disconnect') {
+    return true;
   }
   return (
     message.type === 'initialize' &&

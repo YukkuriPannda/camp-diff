@@ -8,12 +8,21 @@ import { IdentityService } from './identity/identityService';
 import { IgnoreService } from './ignore/ignoreService';
 import { WebviewBridge } from './net/webviewBridge';
 import { Member } from './types';
+import { GitService, GitWorkspaceState } from './git/gitService';
+import { computeRoomKey } from './git/roomKey';
+import { getRemoteName } from './config';
 
 let outputChannel: vscode.OutputChannel;
 
 export interface CampDiffTestApi {
   getMembers(): Member[];
   isConnected(): boolean;
+}
+
+function getRoomKey(state: GitWorkspaceState): string | undefined {
+  return state.kind === 'repository'
+    ? computeRoomKey(state.remoteUrl, state.branchName, state.commitHash)
+    : undefined;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<CampDiffTestApi | void> {
@@ -24,11 +33,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
   const presenceStore = new PresenceStore();
   context.subscriptions.push(presenceStore);
 
-  const treeProvider = new CampDiffTreeProvider(presenceStore);
+  const gitService = new GitService(getRemoteName());
+  context.subscriptions.push(gitService);
+  await gitService.initialize();
+
+  const treeProvider = new CampDiffTreeProvider(presenceStore, gitService.getState());
   context.subscriptions.push(vscode.window.registerTreeDataProvider('campDiff.mainView', treeProvider));
 
   const webviewBridge = new WebviewBridge(
     context,
+    getRoomKey(gitService.getState()),
     presenceStore.getLocalPresence(),
     (peers) => presenceStore.setRemotePresence(peers),
     outputChannel,
@@ -37,6 +51,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
     webviewBridge,
     webviewBridge.onDidChangeConnection((connected) => treeProvider.setConnected(connected)),
     presenceStore.onDidChangeLocal((presence) => webviewBridge.updateLocalPresence(presence)),
+    gitService.onDidChange((state) => {
+      treeProvider.setGitState(state);
+      webviewBridge.updateRoomKey(getRoomKey(state));
+    }),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('campDiff.remoteName')) {
+        gitService.setRemoteName(getRemoteName());
+      }
+    }),
   );
 
   const identityService = new IdentityService();
