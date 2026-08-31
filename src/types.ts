@@ -11,3 +11,10 @@ export interface Member {
   files: FileRange[];
   updatedAt: number;
 }
+
+export interface PresenceState {
+  id: string;
+  username: string;
+  files: FileRange[];
+  updatedAt: number;
+}
