@@ -48,8 +48,8 @@ async function readFakePeerObservedFilePaths(statusFilePath: string): Promise<st
   return states.flatMap((state) => state?.presence?.filePaths ?? []);
 }
 
-suite('camp-diff P2P bridge (real WebRTC via a fake peer)', () => {
-  test('exchanges presence with an independent y-webrtc peer through the hidden webview bridge', async function () {
+suite('camp-diff presence relay (real WebSocket via a fake peer)', () => {
+  test('exchanges presence with an independent relay peer without opening a webview', async function () {
     this.timeout(90_000);
 
     const signalingUrl = process.env.CAMP_DIFF_TEST_SIGNALING_URL;
@@ -91,7 +91,7 @@ suite('camp-diff P2P bridge (real WebRTC via a fake peer)', () => {
         return filePaths.includes('sample.ts');
       },
       60_000,
-      'fake peer to observe the extension file summary via awareness',
+      'fake peer to observe the extension file summary via the relay',
     );
     assert.deepEqual(
       await readFakePeerObservedFiles(statusFilePath),
@@ -102,7 +102,7 @@ suite('camp-diff P2P bridge (real WebRTC via a fake peer)', () => {
     await waitUntil(
       () => api.getMembers().some((member: Member) => member.id === fakePeerId),
       60_000,
-      'extension to observe the fake peer via the hidden webview bridge',
+      'extension host to observe the fake peer',
     );
 
     const members = api.getMembers();

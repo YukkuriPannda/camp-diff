@@ -1,6 +1,6 @@
 # camp-diff signaling server
 
-`y-webrtc`互換の最小WebSocketリレーです。ルームtopicの購読とpublishだけを中継し、presenceのユーザー名・ファイルパス・行範囲はWebRTCのP2Pデータチャネルを通るため、このサーバーでは扱いません。
+camp-diff用の最小WebSocketリレーです。ルームtopicの購読とpublishだけを扱い、データは保存しません。`campDiff.roomPassword`を設定するとpresence payloadはクライアント側でAES-256-GCM暗号化されます。未設定時は中継サーバーから内容を読めるため、本番では共有パスワードと`wss://`を併用してください。
 
 ## 起動
 
@@ -22,7 +22,7 @@ docker run --rm -p 4444:4444 camp-diff-signaling
 
 ## 2ウィンドウ疎通確認
 
-Phase 2では全ウィンドウが固定ルーム`campdiff-dev-room`へ参加します。
+各ウィンドウはremote URLとブランチから導出した同じルームへ参加します。
 
 1. `npm run dev:signaling`を起動したままにする。
 2. `npm run watch`を別ターミナルで起動する。
@@ -30,8 +30,8 @@ Phase 2では全ウィンドウが固定ルーム`campdiff-dev-room`へ参加し
 4. 各ウィンドウで`camp-diff: Set Username`を実行し、異なる名前を設定する。
 5. `campDiff.signalingServerUrls`が両方とも`["ws://localhost:4444"]`になっていることを確認する。
 6. ウィンドウAでファイルの範囲を選択し、1〜2秒以内にウィンドウBの`MEMBERS`へ反映されることを確認する。逆方向も確認する。
-7. 両方で`camp-diff (background sync)`以外のエディタタブをアクティブにし、手順6を繰り返してバックグラウンド同期を確認する。
-8. ウィンドウAを強制終了し、awarenessのstaleタイムアウト後にウィンドウBからAが消えることを確認する。
+7. camp-diffのサイドバーを閉じても専用タブや別ウィンドウが開かず、同期が継続することを確認する。
+8. ウィンドウAを強制終了し、staleタイムアウト後にウィンドウBからAが消えることを確認する。
 9. 同じユーザー名でも2ウィンドウを開き、各セッションが`hostname`とExtension HostのPIDで区別され、同じセッションが重複表示されないことを確認する。
 
 PowerShellから起動する場合の例です。`code`コマンドのパスは環境に合わせてください。
@@ -41,4 +41,4 @@ code --new-window --user-data-dir "$env:TEMP\camp-diff-a" --extensions-dir "$env
 code --new-window --user-data-dir "$env:TEMP\camp-diff-b" --extensions-dir "$env:TEMP\camp-diff-ext-b" --extensionDevelopmentPath="C:\path\to\camp-diff" "C:\path\to\target-repo"
 ```
 
-`campDiff.roomPassword`を使う場合は両ウィンドウで同じ値にします。企業ネットワークやVPNではSTUNだけでは接続できない場合があるため、その場合は`campDiff.iceServers`にTURNを追加してください。
+`campDiff.roomPassword`を使う場合は両ウィンドウで同じ値にします。異なる値を設定したクライアントのpresenceは復号されず、表示されません。

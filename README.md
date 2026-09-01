@@ -29,7 +29,7 @@ Gitの追跡対象外のファイル（`git ls-files --others --exclude-standard
 
 再計算は保存時、ファイルの作成・削除・リネーム時、Gitの状態変化時、ウィンドウのフォーカス時に加えて、フォーカス中は15秒ごとに行います。`camp-diff: Refresh Changed Ranges`コマンドで手動実行もできます。
 
-未コミットの変更は、席を外している間もファイル名を共有し続けます。行範囲は個別のファイル項目が展開されている間だけ共有され、折りたたむとpresenceから外れます。VS Codeを閉じたメンバーは、awarenessのハートビートが途切れた時点で一覧から消えます。
+未コミットの変更は、席を外している間もファイル名を共有し続けます。行範囲は個別のファイル項目が展開されている間だけ共有され、折りたたむとpresenceから外れます。VS Codeを閉じたメンバーは、presenceのハートビートが途切れた時点で一覧から消えます。
 
 > [!IMPORTANT]
 > 判定はGitに保存済みの内容が対象です。**未保存のバッファの変更はGitからは見えないため、保存するまで共有されません。**
@@ -129,9 +129,9 @@ aaa
 
 camp-diffはマーケットプレイスに公開していません。`.vsix`をビルドしてチーム内で配布します。
 
-### 1. シグナリングサーバーを1つ立てる
+### 1. presence中継サーバーを1つ立てる
 
-P2P接続はWebRTCのハンドシェイクを中継するシグナリングサーバー経由で確立します。公開サーバーは用意していないため、チームで1つ立ててください。手順は[`signaling-server/README.md`](signaling-server/README.md)にあります（Dockerfile同梱）。中継するのはSDP/ICEだけで、presenceの中身は通りません。
+presenceはWebSocket中継サーバー経由で共有します。公開サーバーは用意していないため、チームで1つ立ててください。手順は[`signaling-server/README.md`](signaling-server/README.md)にあります（Dockerfile同梱）。`campDiff.roomPassword`を設定すると、中継前にpayloadをAES-256-GCMで暗号化できます。
 
 ### 2. `.vsix`を配る
 
@@ -177,9 +177,8 @@ URLとブランチ名から決まり、サーバーには中身が渡りませ�
 | 設定                              | 既定値                    | 説明                                                                        |
 | --------------------------------- | ------------------------- | --------------------------------------------------------------------------- |
 | `campDiff.username`               | 空                        | 表示名。未設定なら`git config user.name`→OSのユーザー名の順に自動解決します |
-| `campDiff.signalingServerUrls`    | `["ws://localhost:4444"]` | シグナリングサーバーのURL（冗長化のため配列）                               |
-| `campDiff.iceServers`             | Google STUN               | `RTCIceServer[]`形式。企業ネットワークではTURNの追加を推奨します            |
-| `campDiff.roomPassword`           | 空                        | y-webrtcのアプリ層暗号化に使う任意の共有パスワード                          |
+| `campDiff.signalingServerUrls`    | `["ws://localhost:4444"]` | presence中継サーバーのURL（冗長化のため配列）                               |
+| `campDiff.roomPassword`           | 空                        | presenceをAES-256-GCMで暗号化する任意の共有パスワード                       |
 | `campDiff.remoteName`             | `origin`                  | ルーム名の導出に使うremote名。fork構成では`upstream`などに変更します        |
 | `campDiff.diffBase`               | `head`                    | 変更範囲の比較対象。`head`または`upstream`                                 |
 | `campDiff.conflictProximityLines` | `3`                       | 重なっていなくても衝突とみなす範囲間の行数                                  |
@@ -187,20 +186,17 @@ URLとブランチ名から決まり、サーバーには中身が渡りませ�
 ## プライバシー
 
 - 常時共有するのはユーザー情報と変更中のファイルパスまでです。行範囲は、ルーム内の誰かが個別のファイル項目を展開している間だけ、そのファイル分をpresenceへ追加し、要求がなくなると削除します。
-- `awareness`はルーム全体へのbroadcastです。そのため誰か1人がファイルを展開して行範囲を要求すると、通信上は同じルームの全員へそのファイルの行範囲が届きます。各クライアントは、自分が展開していないファイルの行範囲を画面やローカル状態へ渡しません。要求者だけに暗号学的に限定する仕組みではありません。
-- ファイルの本文や差分の中身は一切送信しません。差分は行番号の抽出にのみ使い、追加・削除された行のテキストは読み取った時点で捨てます。presenceはすべて`awareness`（非永続の共有状態）にのみ載せ、共同編集用の文書オブジェクトは空のまま使いません。
-- シグナリングサーバーが扱うのはWebRTCのSDP/ICEハンドシェイクだけです。presenceの中身はP2Pのデータチャネル確立後にしか流れないため、サーバーからは見えません。
+- presenceはルーム全体へのbroadcastです。そのため誰か1人がファイルを展開して行範囲を要求すると、通信上は同じルームの全員へそのファイルの行範囲が届きます。各クライアントは、自分が展開していないファイルの行範囲を画面やローカル状態へ渡しません。要求者だけに暗号学的に限定する仕組みではありません。
+- ファイルの本文や差分の中身は一切送信しません。差分は行番号の抽出にのみ使い、追加・削除された行のテキストは読み取った時点で捨てます。
+- `campDiff.roomPassword`が空の場合、中継サーバーはpresenceの内容を読めます。設定した場合はpayloadがAES-256-GCMで暗号化され、同じパスワードを持つクライアントだけが復号できます。本番では`wss://`と共有パスワードを併用してください。
 - テレメトリの送信は一切ありません。
 
 ## 制限事項
 
 - **認証はありません**。ルーム名の導出にはpublicなremote
   URLとブランチ名しか使わないため、同じ値を計算できる相手は誰でも参加できます。小規模チーム向けMVPとして意図的に許容しています。
-- 企業ネットワークやVPN配下ではSTUNだけでは接続できないことがあります。その場合は`campDiff.iceServers`にTURNを追加してください。
-- フルメッシュ接続のため、人数が増えると接続数が二乗で増えます。十数名程度までを想定しています。
 - remoteが設定されていないリポジトリ、`vscode.git`拡張が無効な環境では接続せず、サイドバーに縮退状態を表示します。
-- バックグラウンド同期用に「camp-diff (background
-  sync)」というタブが常に1つ開きます。これを隠す公式APIがないための仕様です。
+- バックグラウンド同期はExtension Host内で動作し、専用のエディタタブや別ウィンドウは開きません。
 - **未保存の変更は共有されません**。範囲の算出をGitに任せているため、ファイルを保存するまで差分に現れません。
 - ワークスペースフォルダーの外にあるリポジトリ内ファイルの変更は、サイドバーから開けないため共有対象から除外します。
 
@@ -212,9 +208,9 @@ npm run watch              # esbuildのウォッチ（F5でExtension Development
 npm run lint
 npm run compile            # tscによる型チェックのみ
 npm test                   # 単体テスト（VS Codeホスト上で実行）
-npm run test:integration   # 実WebRTCでのP2P疎通・衝突検知の統合テスト
+npm run test:integration   # 実WebSocket中継でのpresence疎通・衝突検知の統合テスト
 npm run test:package       # .vsixを生成しクリーンなプロファイルで起動確認
 npm run package            # .vsix を生成
 ```
 
-プッシュとプルリクエストでは`.github/workflows/ci.yml`が上記のチェックとP2P統合テストを実行し、`v*`タグでは`.github/workflows/release.yml`がリリースを作成します。
+プッシュとプルリクエストでは`.github/workflows/ci.yml`が上記のチェックと中継統合テストを実行し、`v*`タグでは`.github/workflows/release.yml`がリリースを作成します。

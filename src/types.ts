@@ -35,7 +35,7 @@ export interface RangeRequest {
 }
 
 /**
- * The presence shape sent over WebRTC. File names are always visible so the
+ * The presence shape sent through the team relay. File names are always visible so the
  * member tree can be populated, while line ranges are added only for files
  * that at least one peer has explicitly expanded.
  */

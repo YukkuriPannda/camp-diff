@@ -15,6 +15,5 @@
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src"],
-  "exclude": ["src/net/webview"]
+  "include": ["src"]
 }

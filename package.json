@@ -102,41 +102,12 @@
             "type": "string",
             "pattern": "^wss?://"
           },
-          "description": "WebRTC接続の確立に使うシグナリングサーバーURLです。"
-        },
-        "campDiff.iceServers": {
-          "type": "array",
-          "default": [
-            {
-              "urls": "stun:stun.l.google.com:19302"
-            }
-          ],
-          "items": {
-            "type": "object",
-            "required": [
-              "urls"
-            ],
-            "properties": {
-              "urls": {
-                "type": [
-                  "string",
-                  "array"
-                ]
-              },
-              "username": {
-                "type": "string"
-              },
-              "credential": {
-                "type": "string"
-              }
-            }
-          },
-          "description": "WebRTCで使うSTUN/TURNサーバーをRTCIceServer[]形式で指定します。"
+          "description": "camp-diffのpresence中継に使うWebSocketサーバーURLです。"
         },
         "campDiff.roomPassword": {
           "type": "string",
           "default": "",
-          "description": "Git由来のルームで使うy-webrtcアプリ層暗号化の任意のパスワードです。"
+          "description": "presenceを中継前にAES-256-GCMで暗号化する任意のパスワードです。チーム全員で同じ値を設定します。"
         }
       }
     }
@@ -145,7 +116,7 @@
     "vscode:prepublish": "npm run build",
     "build": "node esbuild.js --production",
     "watch": "node esbuild.js --watch",
-    "compile": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.webview.json --noEmit",
+    "compile": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint src test",
     "test:compile": "tsc -p tsconfig.test.json",
     "test": "npm run test:compile && vscode-test",
@@ -156,13 +127,10 @@
   },
   "dependencies": {
     "ignore": "^7.0.8",
-    "y-protocols": "1.0.6",
-    "y-webrtc": "10.3.0",
-    "yjs": "13.6.27"
+    "ws": "8.21.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@roamhq/wrtc": "0.10.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.4.0",
     "@types/vscode": "^1.134.0",
@@ -174,7 +142,6 @@
     "eslint": "^10.9.1",
     "mocha": "^11.8.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.68.0",
-    "ws": "8.21.3"
+    "typescript-eslint": "^8.68.0"
   }
 }

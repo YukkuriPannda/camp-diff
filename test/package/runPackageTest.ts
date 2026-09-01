@@ -7,8 +7,6 @@ import { downloadAndUnzipVSCode, runTests, runVSCodeCommand } from '@vscode/test
 const REQUIRED_PACKAGE_FILES = [
   'package.json',
   'dist/extension.js',
-  'dist/webview/presence-bridge.js',
-  'dist/webview/presence-bridge.html',
   'media/icon.svg',
   'media/icon.png',
 ];

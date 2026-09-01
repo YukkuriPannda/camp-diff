@@ -4,7 +4,7 @@ import { registerCommands } from './ui/commands';
 import { PresenceStore } from './presence/presenceStore';
 import { IdentityService } from './identity/identityService';
 import { IgnoreService } from './ignore/ignoreService';
-import { WebviewBridge } from './net/webviewBridge';
+import { PresenceBridge } from './net/presenceBridge';
 import { ConflictInfo, FileRange, Member } from './types';
 import { GitService, GitWorkspaceState } from './git/gitService';
 import { DiffService } from './git/diffService';
@@ -48,34 +48,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
   const decorations = new ConflictDecorations(treeProvider);
   context.subscriptions.push(decorations);
 
-  const webviewBridge = new WebviewBridge(
-    context,
+  const presenceBridge = new PresenceBridge(
     getRoomKey(gitService.getState()),
     presenceStore.getLocalPresence(),
     (peers) => presenceStore.setRemotePresence(peers),
     outputChannel,
   );
   context.subscriptions.push(
-    webviewBridge,
+    presenceBridge,
     treeView.onDidExpandElement(({ element }) => {
       if (element.type === 'memberFile' && !element.member.isLocal) {
-        webviewBridge.setRangeRequested(element.member.id, element.filePath, true);
+        presenceBridge.setRangeRequested(element.member.id, element.filePath, true);
       }
     }),
     treeView.onDidCollapseElement(({ element }) => {
       if (element.type === 'memberFile' && !element.member.isLocal) {
-        webviewBridge.setRangeRequested(element.member.id, element.filePath, false);
+        presenceBridge.setRangeRequested(element.member.id, element.filePath, false);
       }
     }),
-    webviewBridge.onDidChangeConnection((connected) => treeProvider.setConnected(connected)),
-    presenceStore.onDidChangeLocal((presence) => webviewBridge.updateLocalPresence(presence)),
+    presenceBridge.onDidChangeConnection((connected) => treeProvider.setConnected(connected)),
+    presenceStore.onDidChangeLocal((presence) => presenceBridge.updateLocalPresence(presence)),
     gitService.onDidChange((state) => {
       treeProvider.setGitState(state);
-      webviewBridge.updateRoomKey(getRoomKey(state));
+      presenceBridge.updateRoomKey(getRoomKey(state));
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('campDiff.remoteName')) {
         gitService.setRemoteName(getRemoteName());
+      }
+      if (
+        event.affectsConfiguration('campDiff.signalingServerUrls') ||
+        event.affectsConfiguration('campDiff.roomPassword')
+      ) {
+        presenceBridge.refreshConnectionSettings();
       }
     }),
   );
@@ -91,7 +96,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
 
   // Uncommitted changes stay relevant to everyone else for as long as they
   // exist, so ranges are advertised until the diff itself no longer reports
-  // them. Peers that actually go away are dropped by the awareness heartbeat.
+  // them. Peers that actually go away are dropped by the presence heartbeat.
   const diffService = new DiffService(gitService, ignoreService, outputChannel, (ranges) => {
     presenceStore.setLocalFiles(ranges);
   });
@@ -108,9 +113,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
       getConflicts: () => treeProvider.getConflicts(),
       getDecoratedRanges: () => decorations.getDecoratedRanges(),
       getTreeRootTypes: () => treeProvider.getChildren().map((element) => element.type),
-      isConnected: () => webviewBridge.isConnected,
+      isConnected: () => presenceBridge.isConnected,
       setRangeRequested: (peerId, filePath, requested) =>
-        webviewBridge.setRangeRequested(peerId, filePath, requested),
+        presenceBridge.setRangeRequested(peerId, filePath, requested),
     };
   }
 }

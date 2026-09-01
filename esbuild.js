@@ -23,18 +23,16 @@ const watchPlugin = {
   },
 };
 
-const copyWebviewHtmlPlugin = {
-  name: 'copy-webview-html',
+const removeLegacyRuntimePlugin = {
+  name: 'remove-legacy-runtime',
   setup(build) {
-    build.onEnd(async (result) => {
-      if (result.errors.length > 0) {
-        return;
-      }
-      await fs.mkdir('dist/webview', { recursive: true });
-      await fs.copyFile(
-        'src/net/webview/presence-bridge.html',
-        'dist/webview/presence-bridge.html',
-      );
+    build.onStart(async () => {
+      await Promise.all([
+        fs.rm('dist/webview', { recursive: true, force: true }),
+        fs.rm('dist/native', { recursive: true, force: true }),
+        fs.rm('dist/presence-worker.js', { force: true }),
+        fs.rm('dist/presence-worker.js.map', { force: true }),
+      ]);
     });
   },
 };
@@ -53,20 +51,7 @@ async function main() {
       sourcemap: !production,
       sourcesContent: false,
       logLevel: 'silent',
-      plugins: [watchPlugin],
-    }),
-    esbuild.context({
-      entryPoints: ['src/net/webview/presence-bridge.ts'],
-      bundle: true,
-      format: 'iife',
-      platform: 'browser',
-      target: 'chrome120',
-      outfile: 'dist/webview/presence-bridge.js',
-      minify: production,
-      sourcemap: !production,
-      sourcesContent: false,
-      logLevel: 'silent',
-      plugins: [watchPlugin, copyWebviewHtmlPlugin],
+      plugins: [watchPlugin, removeLegacyRuntimePlugin],
     }),
   ]);
 

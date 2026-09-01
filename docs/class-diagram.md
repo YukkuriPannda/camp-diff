@@ -1,121 +1,49 @@
-# camp-diff クラス図（ドラフト）
+# camp-diff クラス図
 
-`docs/implementation-plan.md` のフォルダ構成をもとにした、主要クラス/モジュールの関係図。Extension Host・Webview・ネットワークの3領域に分けて表示している。試作段階のスケッチなので、実装が進んだら乖離がないか見直すこと。
+同期処理はExtension Host内で完結し、Webviewやエディタタブを生成しません。
 
 ```mermaid
 classDiagram
-    namespace ExtensionHost {
-        class GitService {
-            +getRemoteUrl() string
-            +getBranch() string
-            +getHeadCommit() string
-        }
-        class RoomKey {
-            +compute(remoteUrl, branch) string
-        }
-        class IdentityService {
-            +resolveUsername() string
-            +setUsername(name)
-        }
-        class IgnoreService {
-            +isIgnored(path) bool
-            +reload()
-        }
-        class DiffService {
-            +refresh()
-        }
-        class DiffParser {
-            +parseUnifiedDiffRanges(diff) FileRange[]
-        }
-        class PresenceStore {
-            -localState PresenceState
-            -remoteStates Map~string, PresenceState~
-            +merge(update)
-        }
-        class ConflictDetector {
-            +detectConflicts(members) ConflictInfo[]
-        }
-        class WebviewBridge {
-            +postMessage(msg)
-            +reconnect()
-        }
-        class TreeDataProvider {
-            +getChildren() TreeItem[]
-            +getTreeItem() TreeItem
-        }
-        class DecorationController {
-            +applyDecorations(conflicts)
-        }
-        class StatusBarController {
-            +update(status)
-        }
+    class GitService {
+        +getState() GitWorkspaceState
+    }
+    class DiffService {
+        +refresh()
+    }
+    class PresenceStore {
+        +setLocalFiles(ranges)
+        +setRemotePresence(states)
+        +getMembers() Member[]
+    }
+    class PresenceBridge {
+        +updateLocalPresence(state)
+        +setRangeRequested(peerId, filePath, requested)
+        +updateRoomKey(roomKey)
+    }
+    class RelayProtocol {
+        +createRelayPresenceMessage()
+        +decodeRelayPresenceMessage()
+    }
+    class WebSocketRelay {
+        +subscribe(topic)
+        +publish(topic, payload)
+    }
+    class TreeDataProvider {
+        +getChildren() TreeItem[]
+    }
+    class ConflictDetector {
+        +detectConflicts(members) ConflictInfo[]
     }
 
-    namespace Webview {
-        class PresenceBridge {
-            <<browser script>>
-        }
-        class YWebrtcProvider {
-            <<third-party>>
-            +awareness
-        }
-    }
-
-    namespace Network {
-        class SignalingServer {
-            <<external>>
-            +relay(sdp, ice)
-        }
-        class TeammatePeer {
-            <<mirrored instance>>
-        }
-    }
-
-    class PresenceState {
-        +username string
-        +ranges FileRange[]
-        +timestamp number
-    }
-    class FileRange {
-        +path string
-        +startLine number
-        +endLine number
-    }
-    class ConflictInfo {
-        +path string
-        +members string[]
-        +range FileRange
-    }
-
-    GitService --> RoomKey : remote + branch
-    RoomKey --> WebviewBridge : room id
-    IdentityService --> PresenceStore : username
-    IgnoreService --> DiffService : filters
-    GitService --> DiffService : repository root + git path
-    DiffParser --> DiffService : FileRange[]
-    DiffService --> PresenceStore : local FileRange[]
-    PresenceStore --> ConflictDetector : Member[]
-    PresenceStore --> TreeDataProvider : Member[]
-    ConflictDetector --> TreeDataProvider : ConflictInfo[]
-    ConflictDetector --> DecorationController : ConflictInfo[]
-    WebviewBridge --> StatusBarController : connection heartbeat
-    PresenceStore --> WebviewBridge : local presence out
-    WebviewBridge --> PresenceStore : remote presence in
-    WebviewBridge --> PresenceBridge : postMessage (host to webview)
-    PresenceBridge --> WebviewBridge : postMessage (webview to host)
-    PresenceBridge --> YWebrtcProvider : setLocalState / on(change)
-    YWebrtcProvider ..> SignalingServer : SDP/ICE handshake only
-    YWebrtcProvider --> TeammatePeer : WebRTC data channel (P2P)
-
-    PresenceStore o-- PresenceState
-    PresenceState o-- FileRange
-    ConflictDetector ..> ConflictInfo
+    GitService --> DiffService
+    DiffService --> PresenceStore : local file ranges
+    PresenceStore --> PresenceBridge : local presence
+    PresenceBridge --> PresenceStore : remote presence
+    PresenceBridge --> RelayProtocol : validate / encrypt / decrypt
+    PresenceBridge --> WebSocketRelay : room broadcast
+    PresenceStore --> TreeDataProvider : members
+    PresenceStore --> ConflictDetector : expanded line ranges
+    ConflictDetector --> TreeDataProvider : conflicts
 ```
 
-## 見方
-
-- **ExtensionHost**: Node.jsプロセス側のクラス群。`docs/implementation-plan.md`のフォルダ構成にある`src/git`〜`src/ui`に対応。
-- **Webview**: 隠しWebviewPanel内で動くブラウザ側スクリプト。`y-webrtc`は自前クラスではなくサードパーティ。
-- **Network**: シグナリングサーバー（SDP/ICEの中継のみ）とチームメイト側のインスタンス（同じ構造のミラー）。
-- `WebviewBridge`⇄`PresenceBridge`間の`postMessage`が、Extension HostとWebviewというプロセス境界を越える唯一の経路。
-- `YWebrtcProvider`から先、実際のpresenceデータ（ファイルパス・行範囲）が流れるのは`TeammatePeer`への実線（WebRTC data channel）のみで、シグナリングサーバーへは点線（ハンドシェイクのみ）にとどまる。
+常時送るのはユーザー情報と変更中のファイルパスです。行範囲は相手がツリーのファイル行を展開して要求した間だけ送ります。`campDiff.roomPassword`が設定されている場合、中継payloadはAES-256-GCMで暗号化されます。

@@ -32,5 +32,5 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: P2P integration test (real WebRTC over loopback)
+      - name: Presence relay integration test (real WebSocket over loopback)
         run: xvfb-run -a npm run test:integration
