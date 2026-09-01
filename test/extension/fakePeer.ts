@@ -9,6 +9,8 @@ async function main(): Promise<void> {
     );
   }
   const peerRange = JSON.parse(peerRangeJson) as { filePath: string; startLine: number; endLine: number };
+  const otherPeerRange = { filePath: 'peer-other.ts', startLine: 1, endLine: 2 };
+  const peerRanges = [peerRange, otherPeerRange];
 
   if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === 'undefined') {
     const { WebSocket } = await import('ws');
@@ -33,18 +35,55 @@ async function main(): Promise<void> {
       .map(([, state]) => state);
     fs.writeFileSync(statusFilePath, JSON.stringify(remoteStates), 'utf8');
   };
-  awareness.on('change', writeStatus);
+  let sharedFilePaths = new Set<string>();
+  const publishPresence = () => {
+    awareness.setLocalState({
+      presence: {
+        id: peerId,
+        username: peerUsername,
+        filePaths: peerRanges.map((range) => range.filePath),
+        ranges: peerRanges.filter((range) => sharedFilePaths.has(range.filePath)),
+        rangeRequests: [],
+        updatedAt: Date.now(),
+      },
+      heartbeatAt: Date.now(),
+    });
+  };
+  const handleAwarenessChange = () => {
+    writeStatus();
+    const nextSharedFilePaths = new Set<string>();
+    for (const [clientId, state] of awareness.getStates()) {
+      if (clientId === awareness.clientID || !state || typeof state !== 'object') {
+        continue;
+      }
+      const presence = (state as Record<string, unknown>).presence as
+        | { rangeRequests?: unknown }
+        | undefined;
+      if (!Array.isArray(presence?.rangeRequests)) {
+        continue;
+      }
+      for (const request of presence.rangeRequests) {
+        if (
+          request !== null &&
+          typeof request === 'object' &&
+          (request as { peerId?: unknown }).peerId === peerId &&
+          typeof (request as { filePath?: unknown }).filePath === 'string'
+        ) {
+          nextSharedFilePaths.add((request as { filePath: string }).filePath);
+        }
+      }
+    }
+    const changed =
+      nextSharedFilePaths.size !== sharedFilePaths.size ||
+      [...nextSharedFilePaths].some((filePath) => !sharedFilePaths.has(filePath));
+    if (changed) {
+      sharedFilePaths = nextSharedFilePaths;
+      publishPresence();
+    }
+  };
+  awareness.on('change', handleAwarenessChange);
   writeStatus();
-
-  awareness.setLocalState({
-    presence: {
-      id: peerId,
-      username: peerUsername,
-      files: [peerRange],
-      updatedAt: Date.now(),
-    },
-    heartbeatAt: Date.now(),
-  });
+  publishPresence();
   setInterval(() => {
     awareness.setLocalStateField('heartbeatAt', Date.now());
   }, 10_000);

@@ -10,18 +10,22 @@ import {
   MembersSectionItem,
   MemberItem,
   MemberFileItem,
+  MemberLoadingItem,
+  MemberRangeItem,
   RepositoryStatusItem,
 } from './treeItems';
 import { GitWorkspaceState } from '../git/gitService';
 
-type CampDiffTreeElement =
+export type CampDiffTreeElement =
   | { type: 'connectionStatus' }
   | { type: 'repositoryStatus' }
   | { type: 'conflictsSection' }
   | { type: 'conflict'; conflict: ConflictInfo }
   | { type: 'membersSection' }
   | { type: 'member'; member: Member }
-  | { type: 'memberFile'; member: Member; range: FileRange };
+  | { type: 'memberFile'; member: Member; filePath: string }
+  | { type: 'memberLoading'; member: Member; filePath: string }
+  | { type: 'memberRange'; member: Member; range: FileRange };
 
 export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTreeElement>, vscode.Disposable {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
@@ -107,7 +111,20 @@ export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTre
       case 'member':
         return new MemberItem(element.member);
       case 'memberFile':
-        return new MemberFileItem(element.member, element.range, this.isConflicting(element.member, element.range));
+        return new MemberFileItem(
+          element.member,
+          element.filePath,
+          element.member.files.some(
+            (range) => range.filePath === element.filePath && this.isConflicting(element.member, range),
+          ),
+        );
+      case 'memberRange':
+        return new MemberRangeItem(
+          element.range,
+          this.isConflicting(element.member, element.range),
+        );
+      case 'memberLoading':
+        return new MemberLoadingItem();
     }
   }
 
@@ -127,7 +144,24 @@ export class CampDiffTreeProvider implements vscode.TreeDataProvider<CampDiffTre
       return this.presenceStore.getMembers().map((member) => ({ type: 'member', member }));
     }
     if (element.type === 'member') {
-      return element.member.files.map((range) => ({ type: 'memberFile', member: element.member, range }));
+      return element.member.filePaths.map((filePath) => ({
+        type: 'memberFile',
+        member: element.member,
+        filePath,
+      }));
+    }
+    if (element.type === 'memberFile') {
+      const ranges = element.member.files
+        .filter((range) => range.filePath === element.filePath)
+        .map((range) => ({
+          type: 'memberRange',
+          member: element.member,
+          range,
+        }) satisfies CampDiffTreeElement);
+      if (ranges.length > 0 || element.member.isLocal) {
+        return ranges;
+      }
+      return [{ type: 'memberLoading', member: element.member, filePath: element.filePath }];
     }
     return [];
   }

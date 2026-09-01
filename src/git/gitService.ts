@@ -23,6 +23,7 @@ interface GitRepository {
 
 interface GitApi {
   readonly repositories: GitRepository[];
+  readonly git?: { readonly path: string };
   readonly onDidOpenRepository: vscode.Event<GitRepository>;
   readonly onDidCloseRepository: vscode.Event<GitRepository>;
   readonly onDidChangeState?: vscode.Event<string>;
@@ -72,6 +73,7 @@ export class GitService implements vscode.Disposable {
   private apiDisposables: vscode.Disposable[] = [];
   private repositoryListener: vscode.Disposable | undefined;
   private api: GitApi | undefined;
+  private gitPath: string | undefined;
   private repository: GitRepository | undefined;
   private state: GitWorkspaceState;
 
@@ -117,6 +119,11 @@ export class GitService implements vscode.Disposable {
     return this.state;
   }
 
+  /** Absolute path of the git binary the built-in Git extension resolved. */
+  getGitPath(): string | undefined {
+    return this.gitPath;
+  }
+
   setRemoteName(remoteName: string): void {
     if (this.remoteName === remoteName) {
       return;
@@ -132,6 +139,7 @@ export class GitService implements vscode.Disposable {
   private attachApi(api: GitApi): void {
     this.detachApi();
     this.api = api;
+    this.gitPath = api.git?.path;
     this.apiDisposables = [
       api.onDidOpenRepository(() => this.selectRepository()),
       api.onDidCloseRepository(() => this.selectRepository()),
@@ -151,6 +159,7 @@ export class GitService implements vscode.Disposable {
     }
     this.apiDisposables = [];
     this.api = undefined;
+    this.gitPath = undefined;
   }
 
   private selectRepository(): void {

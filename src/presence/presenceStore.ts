@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as os from 'node:os';
-import { FileRange, Member, PresenceState } from '../types';
+import { FileRange, Member, PresenceState, SharedPresenceState } from '../types';
 
 function rangesEqual(left: FileRange[], right: FileRange[]): boolean {
   return (
@@ -14,7 +14,11 @@ function rangesEqual(left: FileRange[], right: FileRange[]): boolean {
   );
 }
 
-function statesEqual(left: PresenceState[], right: PresenceState[]): boolean {
+function stringsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function statesEqual(left: SharedPresenceState[], right: SharedPresenceState[]): boolean {
   return (
     left.length === right.length &&
     left.every(
@@ -22,7 +26,8 @@ function statesEqual(left: PresenceState[], right: PresenceState[]): boolean {
         state.id === right[index].id &&
         state.username === right[index].username &&
         state.updatedAt === right[index].updatedAt &&
-        rangesEqual(state.files, right[index].files),
+        stringsEqual(state.filePaths, right[index].filePaths) &&
+        rangesEqual(state.ranges ?? [], right[index].ranges ?? []),
     )
   );
 }
@@ -36,7 +41,7 @@ export class PresenceStore implements vscode.Disposable {
   private username = '';
   private localFiles: FileRange[] = [];
   private updatedAt = 0;
-  private remotePresence: PresenceState[] = [];
+  private remotePresence: SharedPresenceState[] = [];
   private readonly machineId = os.hostname();
 
   private getLocalId(): string {
@@ -66,17 +71,8 @@ export class PresenceStore implements vscode.Disposable {
     this.publishLocalChange();
   }
 
-  clearLocalFiles(): void {
-    if (this.localFiles.length === 0) {
-      return;
-    }
-    this.localFiles = [];
-    this.updatedAt = Date.now();
-    this.publishLocalChange();
-  }
-
-  setRemotePresence(states: PresenceState[]): void {
-    const deduplicated = new Map<string, PresenceState>();
+  setRemotePresence(states: SharedPresenceState[]): void {
+    const deduplicated = new Map<string, SharedPresenceState>();
     for (const state of states) {
       if (state.id === this.getLocalId()) {
         continue;
@@ -108,6 +104,8 @@ export class PresenceStore implements vscode.Disposable {
     return {
       ...presence,
       isLocal: true,
+      filePaths: [...new Set(presence.files.map((range) => range.filePath))],
+      detailedFilePaths: [...new Set(presence.files.map((range) => range.filePath))],
     };
   }
 
@@ -115,7 +113,12 @@ export class PresenceStore implements vscode.Disposable {
     return [
       this.getYou(),
       ...this.remotePresence.map((presence) => ({
-        ...presence,
+        id: presence.id,
+        username: presence.username,
+        filePaths: presence.filePaths,
+        files: presence.ranges ?? [],
+        detailedFilePaths: [...new Set((presence.ranges ?? []).map((range) => range.filePath))],
+        updatedAt: presence.updatedAt,
         isLocal: false,
       })),
     ];

@@ -55,6 +55,10 @@
       {
         "command": "campDiff.setUsername",
         "title": "camp-diff: Set Username"
+      },
+      {
+        "command": "campDiff.refresh",
+        "title": "camp-diff: Refresh Changed Ranges"
       }
     ],
     "configuration": {
@@ -65,23 +69,24 @@
           "default": "",
           "description": "他のメンバーに表示されるユーザー名。未設定の場合はgit config user.name、OSのユーザー名の順に自動解決します。"
         },
-        "campDiff.cursorContextLines": {
-          "type": "number",
-          "default": 3,
-          "minimum": 0,
-          "description": "選択範囲が空のとき、カーソル行の前後何行を編集中の範囲として共有するか。"
-        },
-        "campDiff.idleTimeoutSeconds": {
-          "type": "number",
-          "default": 120,
-          "minimum": 5,
-          "description": "この秒数だけ編集操作がない場合、自分の編集箇所をほかのメンバーから見えなくします。"
+        "campDiff.diffBase": {
+          "type": "string",
+          "enum": [
+            "head",
+            "upstream"
+          ],
+          "enumDescriptions": [
+            "HEADとの差分を共有します。ローカルでコミット済みの変更は含まれません。",
+            "リモート追跡ブランチとの分岐点からの差分を共有します。未pushのコミットも含まれます。"
+          ],
+          "default": "head",
+          "description": "編集中の行範囲を求めるときの比較対象です。"
         },
         "campDiff.conflictProximityLines": {
           "type": "number",
           "default": 3,
           "minimum": 0,
-          "description": "編集範囲が重なっていなくても衝突の可能性ありとみなす、範囲間の最大行数です。"
+          "description": "変更範囲が重なっていなくても衝突の可能性ありとみなす、範囲間の最大行数です。"
         },
         "campDiff.remoteName": {
           "type": "string",

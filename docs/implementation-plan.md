@@ -81,14 +81,14 @@ camp-diff/
     git/
       gitService.ts             # vscode.git APIラップ: remote URL, branch, HEAD, 変更イベント
       roomKey.ts                # remote URL + branch -> 決定的なroom id
+      diffService.ts            # gitを実行して変更中のFileRange[]を算出/再計算
+      diffParser.ts             # git diff --unified=0の出力 -> 行範囲（単体テスト可能）
     identity/
       identityService.ts        # ユーザー名解決: 設定 -> git config -> プロンプト -> 永続化
     ignore/
       ignoreService.ts          # `ignore`パッケージで.campdiffignoreを読み込み/監視
     presence/
-      editorTracker.ts          # 選択範囲/アクティブエディタ追跡 -> ローカルFileRange[]
       presenceStore.ts          # ローカル+リモートawareness stateをマージしたview model
-      staleness.ts              # ローカルpresenceのidle/猶予期間による削除
     conflict/
       conflictDetector.ts       # overlap/近接判定の純粋関数（単体テスト可能）
     net/

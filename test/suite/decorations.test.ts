@@ -55,7 +55,9 @@ suite('ConflictDecorations', () => {
         {
           id: 'tanaka-peer',
           username: 'Tanaka',
-          files: [{ ...localRange, startLine: 3, endLine: 4 }],
+          filePaths: [localRange.filePath],
+          ranges: [{ ...localRange, startLine: 3, endLine: 4 }],
+          rangeRequests: [],
           updatedAt: Date.now(),
         },
       ]);
@@ -67,7 +69,9 @@ suite('ConflictDecorations', () => {
         {
           id: 'tanaka-peer',
           username: 'Tanaka',
-          files: [{ ...localRange, startLine: 10, endLine: 11 }],
+          filePaths: [localRange.filePath],
+          ranges: [{ ...localRange, startLine: 10, endLine: 11 }],
+          rangeRequests: [],
           updatedAt: Date.now() + 1,
         },
       ]);

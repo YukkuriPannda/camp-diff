@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
-import { PresenceState } from '../types';
+import { PresenceState, RangeRequest, SharedPresenceState } from '../types';
 import {
   HostToWebviewMessage,
   isWebviewToHostMessage,
@@ -14,6 +14,10 @@ const HEARTBEAT_TIMEOUT_MS = 15_000;
 const INITIAL_RECREATE_DELAY_MS = 1_000;
 const MAX_RECREATE_DELAY_MS = 30_000;
 
+function rangeRequestKey(peerId: string, filePath: string): string {
+  return JSON.stringify([peerId, filePath]);
+}
+
 export class WebviewBridge implements vscode.Disposable {
   private readonly onDidChangeConnectionEmitter = new vscode.EventEmitter<boolean>();
   readonly onDidChangeConnection = this.onDidChangeConnectionEmitter.event;
@@ -24,6 +28,8 @@ export class WebviewBridge implements vscode.Disposable {
   private heartbeatTimeout: ReturnType<typeof setTimeout> | undefined;
   private recreateTimer: ReturnType<typeof setTimeout> | undefined;
   private recreateDelayMs = INITIAL_RECREATE_DELAY_MS;
+  private readonly rangeRequests = new Map<string, RangeRequest>();
+  private remotePeers: SharedPresenceState[] = [];
   private webviewReady = false;
   private connected = false;
   private disposed = false;
@@ -32,7 +38,7 @@ export class WebviewBridge implements vscode.Disposable {
     private readonly context: vscode.ExtensionContext,
     private roomKey: string | undefined,
     private localPresence: PresenceState,
-    private readonly onRemotePresence: (peers: PresenceState[]) => void,
+    private readonly onRemotePresence: (peers: SharedPresenceState[]) => void,
     private readonly outputChannel: vscode.OutputChannel,
   ) {
     this.createPanel();
@@ -47,11 +53,27 @@ export class WebviewBridge implements vscode.Disposable {
     this.postMessage({ type: 'updateLocalPresence', localPresence });
   }
 
+  setRangeRequested(peerId: string, filePath: string, requested: boolean): void {
+    const key = rangeRequestKey(peerId, filePath);
+    const changed = requested ? !this.rangeRequests.has(key) : this.rangeRequests.has(key);
+    if (!changed) {
+      return;
+    }
+    if (requested) {
+      this.rangeRequests.set(key, { peerId, filePath });
+    } else {
+      this.rangeRequests.delete(key);
+    }
+    this.postMessage({ type: 'updateRangeRequests', requests: this.getRangeRequests() });
+    this.publishRemotePresence();
+  }
+
   updateRoomKey(roomKey: string | undefined): void {
     if (this.roomKey === roomKey) {
       return;
     }
     this.roomKey = roomKey;
+    this.rangeRequests.clear();
     this.setConnected(false);
     this.onRemotePresence([]);
     if (!this.webviewReady) {
@@ -133,7 +155,11 @@ export class WebviewBridge implements vscode.Disposable {
         this.markAlive();
         break;
       case 'awarenessUpdate':
-        this.onRemotePresence(message.peers);
+        this.remotePeers = message.peers;
+        if (this.pruneRangeRequests(message.peers)) {
+          this.postMessage({ type: 'updateRangeRequests', requests: this.getRangeRequests() });
+        }
+        this.publishRemotePresence();
         break;
       case 'providerStatus':
         this.outputChannel.appendLine(
@@ -154,7 +180,45 @@ export class WebviewBridge implements vscode.Disposable {
       iceServers: getIceServers(),
       roomPassword: getRoomPassword(),
       localPresence: this.localPresence,
+      rangeRequests: this.getRangeRequests(),
     });
+  }
+
+  private publishRemotePresence(): void {
+    this.onRemotePresence(
+      this.remotePeers.map((peer) => {
+        const requestedFiles = new Set(
+          this.getRangeRequests()
+            .filter((request) => request.peerId === peer.id)
+            .map((request) => request.filePath),
+        );
+        if (requestedFiles.size === 0) {
+          return { ...peer, ranges: undefined };
+        }
+        return {
+          ...peer,
+          ranges: peer.ranges?.filter((range) => requestedFiles.has(range.filePath)),
+        };
+      }),
+    );
+  }
+
+  private getRangeRequests(): RangeRequest[] {
+    return [...this.rangeRequests.values()].sort(
+      (left, right) => left.peerId.localeCompare(right.peerId) || left.filePath.localeCompare(right.filePath),
+    );
+  }
+
+  private pruneRangeRequests(peers: SharedPresenceState[]): boolean {
+    const liveFilesByPeer = new Map(peers.map((peer) => [peer.id, new Set(peer.filePaths)]));
+    let changed = false;
+    for (const [key, request] of this.rangeRequests) {
+      if (!liveFilesByPeer.get(request.peerId)?.has(request.filePath)) {
+        this.rangeRequests.delete(key);
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   private startHeartbeat(): void {
@@ -215,6 +279,8 @@ export class WebviewBridge implements vscode.Disposable {
     this.messageListener = undefined;
     this.stopHeartbeat();
     this.setConnected(false);
+    this.rangeRequests.clear();
+    this.remotePeers = [];
     this.onRemotePresence([]);
     this.scheduleRecreation();
   }

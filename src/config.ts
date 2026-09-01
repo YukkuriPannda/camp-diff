@@ -10,12 +10,12 @@ export function setUsername(username: string): Thenable<void> {
   return vscode.workspace.getConfiguration(SECTION).update('username', username, vscode.ConfigurationTarget.Global);
 }
 
-export function getCursorContextLines(): number {
-  return vscode.workspace.getConfiguration(SECTION).get<number>('cursorContextLines', 3);
-}
+export type DiffBase = 'head' | 'upstream';
 
-export function getIdleTimeoutSeconds(): number {
-  return vscode.workspace.getConfiguration(SECTION).get<number>('idleTimeoutSeconds', 120);
+export function getDiffBase(): DiffBase {
+  return vscode.workspace.getConfiguration(SECTION).get<DiffBase>('diffBase', 'head') === 'upstream'
+    ? 'upstream'
+    : 'head';
 }
 
 export function getConflictProximityLines(): number {

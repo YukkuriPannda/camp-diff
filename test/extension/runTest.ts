@@ -96,6 +96,24 @@ async function createTestWorkspace(): Promise<string> {
     Array.from({ length: 20 }, (_, i) => `const line${i + 1} = ${i + 1};`).join('\n') + '\n',
     'utf8',
   );
+  // The status file the fake peer writes lives inside the workspace, so it is
+  // ignored to keep it out of the untracked-file scan.
+  await fs.writeFile(path.join(dir, '.gitignore'), '.fake-peer-status.json\n', 'utf8');
+  // Ranges come from `git diff HEAD`, which needs a commit to compare against.
+  await execFileAsync('git', ['add', '-A'], { cwd: dir, env: gitEnv });
+  await execFileAsync(
+    'git',
+    [
+      '-c',
+      'user.name=camp-diff integration',
+      '-c',
+      'user.email=integration@example.com',
+      'commit',
+      '-m',
+      'fixture',
+    ],
+    { cwd: dir, env: gitEnv },
+  );
   return dir;
 }
 

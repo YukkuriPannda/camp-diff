@@ -29,7 +29,41 @@ suite('CampDiffTreeProvider', () => {
         {
           id: 'tanaka-peer',
           username: 'Tanaka',
-          files: [remoteRange],
+          filePaths: [remoteRange.filePath],
+          rangeRequests: [],
+          updatedAt: Date.now(),
+        },
+      ]);
+
+      assert.deepEqual(
+        provider.getChildren().map((element) => element.type),
+        ['connectionStatus', 'repositoryStatus', 'membersSection'],
+      );
+      const membersSectionWithoutDetails = provider
+        .getChildren()
+        .find((element) => element.type === 'membersSection');
+      assert.ok(membersSectionWithoutDetails);
+      const remoteMemberWithoutDetails = provider
+        .getChildren(membersSectionWithoutDetails)
+        .find((element) => element.type === 'member' && !element.member.isLocal);
+      assert.ok(remoteMemberWithoutDetails && remoteMemberWithoutDetails.type === 'member');
+      const [summaryFileElement] = provider.getChildren(remoteMemberWithoutDetails);
+      assert.ok(summaryFileElement && summaryFileElement.type === 'memberFile');
+      const summaryFileItem = provider.getTreeItem(summaryFileElement);
+      assert.equal(summaryFileItem.label, remoteRange.filePath);
+      assert.equal(summaryFileItem.collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+      const [loadingElement] = provider.getChildren(summaryFileElement);
+      assert.ok(loadingElement && loadingElement.type === 'memberLoading');
+      assert.equal(provider.getTreeItem(loadingElement).label, 'Loading lines…');
+      assert.equal(summaryFileItem.command, undefined);
+
+      store.setRemotePresence([
+        {
+          id: 'tanaka-peer',
+          username: 'Tanaka',
+          filePaths: [remoteRange.filePath],
+          ranges: [remoteRange],
+          rangeRequests: [],
           updatedAt: Date.now(),
         },
       ]);
@@ -68,13 +102,22 @@ suite('CampDiffTreeProvider', () => {
         const fileItem = provider.getTreeItem(fileElement);
         assert.ok(fileItem.iconPath instanceof vscode.ThemeIcon);
         assert.equal(fileItem.iconPath.id, 'warning');
+        const [rangeElement] = provider.getChildren(fileElement);
+        assert.ok(rangeElement && rangeElement.type === 'memberRange');
+        const rangeItem = provider.getTreeItem(rangeElement);
+        assert.match(String(rangeItem.label), /^Lines \d+–\d+$/);
+        assert.ok(rangeItem.iconPath instanceof vscode.ThemeIcon);
+        assert.equal(rangeItem.iconPath.id, 'warning');
+        assert.deepEqual(rangeItem.command?.arguments, [rangeElement.range]);
       }
 
       store.setRemotePresence([
         {
           id: 'tanaka-peer',
           username: 'Tanaka',
-          files: [{ filePath: 'src/auth.ts', startLine: 80, endLine: 90 }],
+          filePaths: ['src/auth.ts'],
+          ranges: [{ filePath: 'src/auth.ts', startLine: 80, endLine: 90 }],
+          rangeRequests: [],
           updatedAt: Date.now() + 1,
         },
       ]);

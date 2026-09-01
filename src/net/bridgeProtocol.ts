@@ -1,4 +1,4 @@
-import { FileRange, PresenceState } from '../types';
+import { FileRange, PresenceState, RangeRequest, SharedPresenceState } from '../types';
 
 export interface InitializeMessage {
   type: 'initialize';
@@ -7,6 +7,7 @@ export interface InitializeMessage {
   iceServers: RTCIceServer[];
   roomPassword?: string;
   localPresence: PresenceState;
+  rangeRequests: RangeRequest[];
 }
 
 export interface DisconnectMessage {
@@ -18,6 +19,11 @@ export interface UpdateLocalPresenceMessage {
   localPresence: PresenceState;
 }
 
+export interface UpdateRangeRequestsMessage {
+  type: 'updateRangeRequests';
+  requests: RangeRequest[];
+}
+
 export interface PingMessage {
   type: 'ping';
   sentAt: number;
@@ -27,6 +33,7 @@ export type HostToWebviewMessage =
   | InitializeMessage
   | DisconnectMessage
   | UpdateLocalPresenceMessage
+  | UpdateRangeRequestsMessage
   | PingMessage;
 
 export interface ReadyMessage {
@@ -40,7 +47,7 @@ export interface PongMessage {
 
 export interface AwarenessUpdateMessage {
   type: 'awarenessUpdate';
-  peers: PresenceState[];
+  peers: SharedPresenceState[];
 }
 
 export interface ProviderStatusMessage {
@@ -92,6 +99,40 @@ export function isPresenceState(value: unknown): value is PresenceState {
   );
 }
 
+function isRangeRequest(value: unknown): value is RangeRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const request = value as Record<string, unknown>;
+  return (
+    typeof request.peerId === 'string' &&
+    request.peerId.length > 0 &&
+    typeof request.filePath === 'string' &&
+    request.filePath.length > 0
+  );
+}
+
+export function isSharedPresenceState(value: unknown): value is SharedPresenceState {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const state = value as Record<string, unknown>;
+  return (
+    typeof state.id === 'string' &&
+    state.id.length > 0 &&
+    typeof state.username === 'string' &&
+    state.username.length > 0 &&
+    Array.isArray(state.filePaths) &&
+    state.filePaths.every((filePath) => typeof filePath === 'string') &&
+    (state.ranges === undefined ||
+      (Array.isArray(state.ranges) && state.ranges.every(isFileRange))) &&
+    Array.isArray(state.rangeRequests) &&
+    state.rangeRequests.every(isRangeRequest) &&
+    typeof state.updatedAt === 'number' &&
+    Number.isFinite(state.updatedAt)
+  );
+}
+
 export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMessage {
   if (!value || typeof value !== 'object') {
     return false;
@@ -103,6 +144,9 @@ export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMe
   if (message.type === 'updateLocalPresence') {
     return isPresenceState(message.localPresence);
   }
+  if (message.type === 'updateRangeRequests') {
+    return Array.isArray(message.requests) && message.requests.every(isRangeRequest);
+  }
   if (message.type === 'disconnect') {
     return true;
   }
@@ -113,6 +157,8 @@ export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMe
     message.signalingServerUrls.every((url) => typeof url === 'string') &&
     Array.isArray(message.iceServers) &&
     isPresenceState(message.localPresence) &&
+    Array.isArray(message.rangeRequests) &&
+    message.rangeRequests.every(isRangeRequest) &&
     (message.roomPassword === undefined || typeof message.roomPassword === 'string')
   );
 }
@@ -128,7 +174,7 @@ export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMe
     case 'pong':
       return typeof message.sentAt === 'number';
     case 'awarenessUpdate':
-      return Array.isArray(message.peers) && message.peers.every(isPresenceState);
+      return Array.isArray(message.peers) && message.peers.every(isSharedPresenceState);
     case 'providerStatus':
       return (
         (message.status === 'connected' || message.status === 'disconnected') &&

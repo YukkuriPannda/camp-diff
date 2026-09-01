@@ -9,7 +9,9 @@ function member(id: string, files: FileRange[]): Member {
     id,
     username: id,
     isLocal: id === 'You',
+    filePaths: [...new Set(files.map((range) => range.filePath))],
     files,
+    detailedFilePaths: [...new Set(files.map((range) => range.filePath))],
     updatedAt: 0,
   };
 }

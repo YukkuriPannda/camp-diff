@@ -4,10 +4,10 @@ import { WebrtcProvider } from 'y-webrtc';
 import {
   HostToWebviewMessage,
   isHostToWebviewMessage,
-  isPresenceState,
+  isSharedPresenceState,
   WebviewToHostMessage,
 } from '../bridgeProtocol';
-import { PresenceState } from '../../types';
+import { PresenceState, RangeRequest, SharedPresenceState } from '../../types';
 
 interface VsCodeApi {
   postMessage(message: WebviewToHostMessage): void;
@@ -23,31 +23,46 @@ let awareness: Awareness | undefined;
 let provider: WebrtcProvider | undefined;
 let awarenessHeartbeat: ReturnType<typeof setInterval> | undefined;
 let localPresence: PresenceState | undefined;
+let rangeRequests: RangeRequest[] = [];
+let sharedFilePaths = new Set<string>();
 let providerStatus: 'connected' | 'disconnected' = 'disconnected';
 
 function postMessage(message: WebviewToHostMessage): void {
   vscode.postMessage(message);
 }
 
-function getRemotePeers(): PresenceState[] {
+function normalizeRangeRequests(requests: RangeRequest[]): RangeRequest[] {
+  const unique = new Map<string, RangeRequest>();
+  for (const request of requests) {
+    unique.set(JSON.stringify([request.peerId, request.filePath]), request);
+  }
+  return [...unique.values()].sort(
+    (left, right) => left.peerId.localeCompare(right.peerId) || left.filePath.localeCompare(right.filePath),
+  );
+}
+
+function stringSetsEqual(left: Set<string>, right: Set<string>): boolean {
+  return left.size === right.size && [...left].every((value) => right.has(value));
+}
+
+function getRemotePeers(): SharedPresenceState[] {
   if (!awareness) {
     return [];
   }
-  const peers: PresenceState[] = [];
+  const peers: SharedPresenceState[] = [];
   for (const [clientId, state] of awareness.getStates()) {
     if (clientId === awareness.clientID || !state || typeof state !== 'object') {
       continue;
     }
     const presence = (state as Record<string, unknown>).presence;
-    if (isPresenceState(presence)) {
+    if (isSharedPresenceState(presence)) {
       peers.push(presence);
     }
   }
   return peers;
 }
 
-function publishRemotePeers(): void {
-  const peers = getRemotePeers();
+function publishRemotePeers(peers = getRemotePeers()): void {
   postMessage({ type: 'awarenessUpdate', peers });
   postMessage({
     type: 'providerStatus',
@@ -60,10 +75,38 @@ function publishLocalPresence(): void {
   if (!awareness || !localPresence) {
     return;
   }
+  const ranges = localPresence.files.filter((range) => sharedFilePaths.has(range.filePath));
   awareness.setLocalState({
-    presence: localPresence,
+    presence: {
+      id: localPresence.id,
+      username: localPresence.username,
+      filePaths: [...new Set(localPresence.files.map((range) => range.filePath))],
+      ranges: ranges.length > 0 ? ranges : undefined,
+      rangeRequests,
+      updatedAt: localPresence.updatedAt,
+    } satisfies SharedPresenceState,
     heartbeatAt: Date.now(),
   });
+}
+
+function handleAwarenessChange(): void {
+  const peers = getRemotePeers();
+  const nextSharedFilePaths = new Set<string>();
+  if (localPresence) {
+    for (const peer of peers) {
+      for (const request of peer.rangeRequests) {
+        if (request.peerId === localPresence.id) {
+          nextSharedFilePaths.add(request.filePath);
+        }
+      }
+    }
+  }
+  if (!stringSetsEqual(nextSharedFilePaths, sharedFilePaths)) {
+    sharedFilePaths = nextSharedFilePaths;
+    publishLocalPresence();
+    return;
+  }
+  publishRemotePeers(peers);
 }
 
 function destroyProvider(): void {
@@ -77,6 +120,7 @@ function destroyProvider(): void {
   provider = undefined;
   awareness = undefined;
   doc = undefined;
+  sharedFilePaths = new Set<string>();
   providerStatus = 'disconnected';
 }
 
@@ -89,9 +133,10 @@ function disconnect(): void {
 function initialize(message: Extract<HostToWebviewMessage, { type: 'initialize' }>): void {
   destroyProvider();
   localPresence = message.localPresence;
+  rangeRequests = normalizeRangeRequests(message.rangeRequests);
   doc = new Y.Doc();
   awareness = new Awareness(doc);
-  awareness.on('change', publishRemotePeers);
+  awareness.on('change', handleAwarenessChange);
   provider = new WebrtcProvider(message.roomName, doc, {
     signaling: message.signalingServerUrls,
     password: message.roomPassword,
@@ -130,6 +175,10 @@ function handleMessage(value: unknown): void {
       break;
     case 'updateLocalPresence':
       localPresence = value.localPresence;
+      publishLocalPresence();
+      break;
+    case 'updateRangeRequests':
+      rangeRequests = normalizeRangeRequests(value.requests);
       publishLocalPresence();
       break;
     case 'disconnect':

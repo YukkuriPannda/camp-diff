@@ -9,6 +9,7 @@
     "src/types.ts",
     "src/ignore/ignoreMatcher.ts",
     "src/git/roomKey.ts",
+    "src/git/diffParser.ts",
     "src/conflict/**/*.ts",
     "test/**/*.ts"
   ]

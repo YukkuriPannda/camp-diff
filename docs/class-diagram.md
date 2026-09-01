@@ -21,16 +21,16 @@ classDiagram
             +isIgnored(path) bool
             +reload()
         }
-        class EditorTracker {
-            +onDidChangeLocalRange
+        class DiffService {
+            +refresh()
+        }
+        class DiffParser {
+            +parseUnifiedDiffRanges(diff) FileRange[]
         }
         class PresenceStore {
             -localState PresenceState
             -remoteStates Map~string, PresenceState~
             +merge(update)
-        }
-        class StalenessManager {
-            +prune()
         }
         class ConflictDetector {
             +detectConflicts(members) ConflictInfo[]
@@ -90,9 +90,10 @@ classDiagram
     GitService --> RoomKey : remote + branch
     RoomKey --> WebviewBridge : room id
     IdentityService --> PresenceStore : username
-    IgnoreService --> EditorTracker : filters
-    EditorTracker --> PresenceStore : local FileRange[]
-    StalenessManager --> PresenceStore : prunes stale peers
+    IgnoreService --> DiffService : filters
+    GitService --> DiffService : repository root + git path
+    DiffParser --> DiffService : FileRange[]
+    DiffService --> PresenceStore : local FileRange[]
     PresenceStore --> ConflictDetector : Member[]
     PresenceStore --> TreeDataProvider : Member[]
     ConflictDetector --> TreeDataProvider : ConflictInfo[]

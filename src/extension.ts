@@ -2,13 +2,12 @@ import * as vscode from 'vscode';
 import { CampDiffTreeProvider } from './ui/treeDataProvider';
 import { registerCommands } from './ui/commands';
 import { PresenceStore } from './presence/presenceStore';
-import { EditorTracker } from './presence/editorTracker';
-import { LocalStaleness } from './presence/staleness';
 import { IdentityService } from './identity/identityService';
 import { IgnoreService } from './ignore/ignoreService';
 import { WebviewBridge } from './net/webviewBridge';
 import { ConflictInfo, FileRange, Member } from './types';
 import { GitService, GitWorkspaceState } from './git/gitService';
+import { DiffService } from './git/diffService';
 import { computeRoomKey } from './git/roomKey';
 import { getRemoteName } from './config';
 import { ConflictDecorations } from './ui/decorations';
@@ -21,6 +20,7 @@ export interface CampDiffTestApi {
   getDecoratedRanges(): FileRange[];
   getTreeRootTypes(): string[];
   isConnected(): boolean;
+  setRangeRequested(peerId: string, filePath: string, requested: boolean): void;
 }
 
 function getRoomKey(state: GitWorkspaceState): string | undefined {
@@ -42,7 +42,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
   await gitService.initialize();
 
   const treeProvider = new CampDiffTreeProvider(presenceStore, gitService.getState());
-  context.subscriptions.push(treeProvider, vscode.window.registerTreeDataProvider('campDiff.mainView', treeProvider));
+  const treeView = vscode.window.createTreeView('campDiff.mainView', { treeDataProvider: treeProvider });
+  context.subscriptions.push(treeProvider, treeView);
 
   const decorations = new ConflictDecorations(treeProvider);
   context.subscriptions.push(decorations);
@@ -56,6 +57,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
   );
   context.subscriptions.push(
     webviewBridge,
+    treeView.onDidExpandElement(({ element }) => {
+      if (element.type === 'memberFile' && !element.member.isLocal) {
+        webviewBridge.setRangeRequested(element.member.id, element.filePath, true);
+      }
+    }),
+    treeView.onDidCollapseElement(({ element }) => {
+      if (element.type === 'memberFile' && !element.member.isLocal) {
+        webviewBridge.setRangeRequested(element.member.id, element.filePath, false);
+      }
+    }),
     webviewBridge.onDidChangeConnection((connected) => treeProvider.setConnected(connected)),
     presenceStore.onDidChangeLocal((presence) => webviewBridge.updateLocalPresence(presence)),
     gitService.onDidChange((state) => {
@@ -74,18 +85,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
     presenceStore.setUsername(username);
   });
 
-  const staleness = new LocalStaleness(() => presenceStore.clearLocalFiles());
-  context.subscriptions.push(staleness);
-
   const ignoreService = new IgnoreService(vscode.workspace.workspaceFolders?.[0]?.uri);
   context.subscriptions.push(ignoreService);
   await ignoreService.initialize();
 
-  const editorTracker = new EditorTracker(ignoreService, (ranges) => {
+  // Uncommitted changes stay relevant to everyone else for as long as they
+  // exist, so ranges are advertised until the diff itself no longer reports
+  // them. Peers that actually go away are dropped by the awareness heartbeat.
+  const diffService = new DiffService(gitService, ignoreService, outputChannel, (ranges) => {
     presenceStore.setLocalFiles(ranges);
-    staleness.touch();
   });
-  context.subscriptions.push(editorTracker);
+  context.subscriptions.push(
+    diffService,
+    vscode.commands.registerCommand('campDiff.refresh', () => diffService.refresh()),
+  );
 
   registerCommands(context, identityService, presenceStore);
 
@@ -96,6 +109,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<CampDi
       getDecoratedRanges: () => decorations.getDecoratedRanges(),
       getTreeRootTypes: () => treeProvider.getChildren().map((element) => element.type),
       isConnected: () => webviewBridge.isConnected,
+      setRangeRequested: (peerId, filePath, requested) =>
+        webviewBridge.setRangeRequested(peerId, filePath, requested),
     };
   }
 }

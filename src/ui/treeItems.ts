@@ -95,6 +95,7 @@ export class ConflictItem extends vscode.TreeItem {
 export class MemberItem extends vscode.TreeItem {
   constructor(readonly member: Member) {
     super(getMemberLabel(member), vscode.TreeItemCollapsibleState.Expanded);
+    this.id = `campDiff.member.${member.id}`;
     this.contextValue = 'campDiff.member';
   }
 }
@@ -102,19 +103,37 @@ export class MemberItem extends vscode.TreeItem {
 export class MemberFileItem extends vscode.TreeItem {
   constructor(
     readonly member: Member,
-    readonly range: FileRange,
+    readonly filePath: string,
     conflicting = false,
   ) {
-    super(range.filePath, vscode.TreeItemCollapsibleState.None);
-    this.description = `L${range.startLine}-${range.endLine}`;
+    super(filePath, vscode.TreeItemCollapsibleState.Collapsed);
+    this.id = `campDiff.memberFile.${member.id}.${filePath}`;
     if (conflicting) {
       this.iconPath = new vscode.ThemeIcon('warning');
     }
     this.contextValue = 'campDiff.memberFile';
+  }
+}
+
+export class MemberRangeItem extends vscode.TreeItem {
+  constructor(readonly range: FileRange, conflicting = false) {
+    super(`Lines ${range.startLine}–${range.endLine}`, vscode.TreeItemCollapsibleState.None);
+    if (conflicting) {
+      this.iconPath = new vscode.ThemeIcon('warning');
+    }
+    this.contextValue = 'campDiff.memberRange';
     this.command = {
       command: 'campDiff.openLocation',
       title: 'Open Location',
       arguments: [range],
     };
+  }
+}
+
+export class MemberLoadingItem extends vscode.TreeItem {
+  constructor() {
+    super('Loading lines…', vscode.TreeItemCollapsibleState.None);
+    this.iconPath = new vscode.ThemeIcon('loading~spin');
+    this.contextValue = 'campDiff.memberLoading';
   }
 }
