@@ -33,6 +33,8 @@ jobs:
       - run: npm run compile
       - name: Unit tests
         run: xvfb-run -a npm test
+      - name: Presence relay integration test (real WebSocket over loopback)
+        run: xvfb-run -a npm run test:integration
       - name: Packaging check
         run: xvfb-run -a npm run test:package
 
