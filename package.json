@@ -18,7 +18,7 @@
     "url": "https://github.com/YukkuriPannda/camp-diff/issues"
   },
   "homepage": "https://github.com/YukkuriPannda/camp-diff#readme",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "camp-diff",
   "private": true,
   "workspaces": [
