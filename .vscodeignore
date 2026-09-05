@@ -4,6 +4,7 @@
 .vscode-test.mjs
 .git/**
 .gitignore
+AGENTS.md
 CLAUDE.md
 docs/**
 src/**
@@ -18,3 +19,4 @@ tsconfig.test.json
 package-lock.json
 **/*.map
 **/*.vsix
+media/*.ai

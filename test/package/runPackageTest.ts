@@ -10,12 +10,20 @@ const REQUIRED_PACKAGE_FILES = [
   'media/icon.svg',
   'media/icon.png',
 ];
+const FORBIDDEN_PACKAGE_FILES = [
+  'AGENTS.md',
+  'CLAUDE.md',
+];
 
-async function assertRuntimeAssetsArePackaged(repoRoot: string): Promise<void> {
+async function assertPackageContents(repoRoot: string): Promise<void> {
   const packaged = new Set((await listFiles({ cwd: repoRoot })).map((file) => file.split(String.fromCharCode(92)).join('/')));
   const missing = REQUIRED_PACKAGE_FILES.filter((file) => !packaged.has(file));
   if (missing.length > 0) {
     throw new Error(`the .vsix is missing runtime assets: ${missing.join(', ')}`);
+  }
+  const included = FORBIDDEN_PACKAGE_FILES.filter((file) => packaged.has(file));
+  if (included.length > 0) {
+    throw new Error(`the .vsix includes internal project files: ${included.join(', ')}`);
   }
 }
 
@@ -28,7 +36,7 @@ async function main(): Promise<void> {
   await fs.mkdir(extensionsDir, { recursive: true });
   await fs.mkdir(userDataDir, { recursive: true });
 
-  await assertRuntimeAssetsArePackaged(repoRoot);
+  await assertPackageContents(repoRoot);
   await createVSIX({ cwd: repoRoot, packagePath: vsixPath, allowMissingRepository: true });
 
   const vscodeExecutablePath = await downloadAndUnzipVSCode();
